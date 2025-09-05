@@ -17,14 +17,22 @@ trait HasRespCodeTranslation
         if (function_exists('__')) {
             try {
                 $translationKey = $this->getTranslationKey();
-                $translated = __($translationKey);
-
+                
+                // Try with simple-exception namespace
+                $translated = __('simple-exception::' . $translationKey);
+                
                 // If translation exists and is different from key, return it
+                if ($translated !== 'simple-exception::' . $translationKey) {
+                    return $translated;
+                }
+                
+                // Try without namespace as fallback
+                $translated = __($translationKey);
                 if ($translated !== $translationKey) {
                     return $translated;
                 }
             } catch (Exception $e) {
-                // If translation fails, fall back to default messages
+                // If translation fails, fall back to generated message
             }
         }
 
