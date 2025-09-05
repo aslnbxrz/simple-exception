@@ -135,7 +135,14 @@ class ExceptionHandler extends Handler
     private function processThrowableMessage(Throwable $exception, $code, ?int $httpCode): array
     {
         $processedCode = $code instanceof ThrowableEnum ? $code->value : ($code ?? $exception->getCode());
-        $processedHttpCode = $httpCode ?? $this->getExceptionHttpCode($exception);
+        
+        // If code is ThrowableEnum, use its httpStatusCode method
+        if ($code instanceof ThrowableEnum) {
+            $processedHttpCode = $httpCode ?? $code->httpStatusCode();
+        } else {
+            $processedHttpCode = $httpCode ?? $this->getExceptionHttpCode($exception);
+        }
+        
         $processedMessage = $exception->getMessage();
 
         return [$processedMessage, $processedCode, $processedHttpCode];
@@ -158,10 +165,19 @@ class ExceptionHandler extends Handler
      */
     private function processSimpleMessage($message, $code, ?int $httpCode): array
     {
+        $processedCode = $code ?? $this->getDefaultErrorCode();
+        
+        // If code is ThrowableEnum, use its httpStatusCode method
+        if ($code instanceof ThrowableEnum) {
+            $processedHttpCode = $httpCode ?? $code->httpStatusCode();
+        } else {
+            $processedHttpCode = $httpCode ?? HttpResponse::HTTP_INTERNAL_SERVER_ERROR;
+        }
+        
         return [
             $message,
-            $code ?? $this->getDefaultErrorCode(),
-            $httpCode ?? HttpResponse::HTTP_INTERNAL_SERVER_ERROR
+            $processedCode,
+            $processedHttpCode
         ];
     }
 
