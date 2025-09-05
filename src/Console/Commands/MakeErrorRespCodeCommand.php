@@ -7,13 +7,19 @@ use Illuminate\Support\Facades\File;
 
 class MakeErrorRespCodeCommand extends Command
 {
-    protected $signature = 'make:error-resp-code {name : The name of the error response code enum}';
+    protected $signature = 'make:error-resp-code {name? : The name of the error response code enum}';
     protected $description = 'Create a new error response code enum';
 
     public function handle()
     {
-        $name = $this->argument('name');
-        $className = ucfirst($name);
+        $name = $this->getEnumName();
+        
+        if (!$name) {
+            $this->error('Please provide a name for the error response code enum.');
+            return 1;
+        }
+
+        $className = $this->formatClassName($name);
         
         // App/Enums papkasini yaratish
         $enumPath = app_path('Enums');
@@ -38,14 +44,65 @@ class MakeErrorRespCodeCommand extends Command
         // Faylni yozish
         File::put($filePath, $content);
 
-        $this->info("Error response code enum {$className} created successfully!");
-        $this->line("File: {$filePath}");
+        $this->info("✅ Error response code enum {$className} created successfully!");
+        $this->line("📁 File: {$filePath}");
         $this->line("");
-        $this->line("Usage examples:");
-        $this->line("error_if(true, {$className}::SomeError);");
-        $this->line("error_unless(false, {$className}::AnotherError);");
-        $this->line("error({$className}::CustomError);");
+        $this->line("🚀 Usage examples:");
+        $this->line("   error_if(true, {$className}::ExampleError);");
+        $this->line("   error_unless(false, {$className}::ExampleError);");
+        $this->line("   error({$className}::ExampleError);");
+        $this->line("");
+        $this->line("💡 Tip: You can add more cases to the enum as needed!");
 
         return 0;
+    }
+
+    /**
+     * Get enum name from user input
+     */
+    private function getEnumName(): ?string
+    {
+        $name = $this->argument('name');
+        
+        if ($name) {
+            return $name;
+        }
+
+        // Interactive mode
+        $this->line('Welcome to Error Response Code Generator! 🎉');
+        $this->line('');
+        
+        do {
+            $name = $this->ask('What would you like to name your error response code enum?');
+            
+            if (!$name) {
+                $this->error('Name cannot be empty. Please try again.');
+                continue;
+            }
+            
+            if (!preg_match('/^[a-zA-Z][a-zA-Z0-9]*$/', $name)) {
+                $this->error('Name must contain only letters and numbers, and start with a letter.');
+                continue;
+            }
+            
+            break;
+        } while (true);
+
+        return $name;
+    }
+
+    /**
+     * Format class name with RespCode suffix
+     */
+    private function formatClassName(string $name): string
+    {
+        // Remove RespCode if already present
+        $name = preg_replace('/RespCode$/i', '', $name);
+        
+        // Capitalize first letter
+        $name = ucfirst($name);
+        
+        // Add RespCode suffix
+        return $name . 'RespCode';
     }
 }

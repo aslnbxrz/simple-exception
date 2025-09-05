@@ -8,20 +8,12 @@ use Symfony\Component\HttpFoundation\Response;
 enum {{ClassName}}: int implements ThrowableEnum
 {
     // Add your error codes here
-    case InvalidUsername = 2001;
-    case InvalidPassword = 2002;
-    case UserNotFound = 2003;
-    case AccessDenied = 2004;
-    case ValidationFailed = 2005;
+    case ExampleError = 2001;
 
     public function message(): string
     {
         $messages = match ($this) {
-            self::InvalidUsername => 'Invalid username provided',
-            self::InvalidPassword => 'Invalid password provided',
-            self::UserNotFound => 'User not found',
-            self::AccessDenied => 'Access denied',
-            self::ValidationFailed => 'Validation failed',
+            self::ExampleError => 'Example error message',
         };
 
         // Try to get translated message if Laravel is available, fallback to default
@@ -41,11 +33,7 @@ enum {{ClassName}}: int implements ThrowableEnum
     private function getTranslationKey(): string
     {
         return match ($this) {
-            self::InvalidUsername => 'invalid_username',
-            self::InvalidPassword => 'invalid_password',
-            self::UserNotFound => 'user_not_found',
-            self::AccessDenied => 'access_denied',
-            self::ValidationFailed => 'validation_failed',
+            self::ExampleError => 'example_error',
         };
     }
 
@@ -57,11 +45,7 @@ enum {{ClassName}}: int implements ThrowableEnum
     public function httpStatusCode(): int
     {
         return match ($this) {
-            self::InvalidUsername => Response::HTTP_BAD_REQUEST,
-            self::InvalidPassword => Response::HTTP_UNAUTHORIZED,
-            self::UserNotFound => Response::HTTP_NOT_FOUND,
-            self::AccessDenied => Response::HTTP_FORBIDDEN,
-            self::ValidationFailed => Response::HTTP_UNPROCESSABLE_ENTITY,
+            self::ExampleError => Response::HTTP_BAD_REQUEST,
         };
     }
 }

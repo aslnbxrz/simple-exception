@@ -25,8 +25,9 @@ class MakeErrorRespCodeCommandTest extends TestCase
     private function cleanupTestFiles(): void
     {
         $testFiles = [
-            app_path('Enums/TestErrorRespCode.php'),
-            app_path('Enums/AnotherTestCode.php'),
+            app_path('Enums/TestRespCode.php'),
+            app_path('Enums/AnotherRespCode.php'),
+            app_path('Enums/UserRespCode.php'),
         ];
 
         foreach ($testFiles as $file) {
@@ -36,38 +37,56 @@ class MakeErrorRespCodeCommandTest extends TestCase
         }
     }
 
-    public function test_command_creates_error_resp_code_enum()
+    public function test_command_creates_error_resp_code_enum_with_name()
     {
-        $this->artisan('make:error-resp-code', ['name' => 'TestErrorRespCode'])
-            ->expectsOutput('Error response code enum TestErrorRespCode created successfully!')
+        $this->artisan('make:error-resp-code', ['name' => 'Test'])
+            ->expectsOutput('✅ Error response code enum TestRespCode created successfully!')
             ->assertExitCode(0);
 
-        $this->assertTrue(File::exists(app_path('Enums/TestErrorRespCode.php')));
+        $this->assertTrue(File::exists(app_path('Enums/TestRespCode.php')));
+    }
+
+    public function test_command_automatically_adds_resp_code_suffix()
+    {
+        $this->artisan('make:error-resp-code', ['name' => 'User'])
+            ->expectsOutput('✅ Error response code enum UserRespCode created successfully!')
+            ->assertExitCode(0);
+
+        $this->assertTrue(File::exists(app_path('Enums/UserRespCode.php')));
+    }
+
+    public function test_command_removes_existing_resp_code_suffix()
+    {
+        $this->artisan('make:error-resp-code', ['name' => 'TestRespCode'])
+            ->expectsOutput('✅ Error response code enum TestRespCode created successfully!')
+            ->assertExitCode(0);
+
+        $this->assertTrue(File::exists(app_path('Enums/TestRespCode.php')));
     }
 
     public function test_command_prevents_duplicate_creation()
     {
         // Create first enum
-        $this->artisan('make:error-resp-code', ['name' => 'AnotherTestCode'])
+        $this->artisan('make:error-resp-code', ['name' => 'Another'])
             ->assertExitCode(0);
 
         // Try to create duplicate
-        $this->artisan('make:error-resp-code', ['name' => 'AnotherTestCode'])
-            ->expectsOutput('Error response code enum AnotherTestCode already exists!')
+        $this->artisan('make:error-resp-code', ['name' => 'Another'])
+            ->expectsOutput('Error response code enum AnotherRespCode already exists!')
             ->assertExitCode(1);
     }
 
     public function test_created_enum_has_correct_structure()
     {
-        $this->artisan('make:error-resp-code', ['name' => 'TestErrorRespCode'])
+        $this->artisan('make:error-resp-code', ['name' => 'Test'])
             ->assertExitCode(0);
 
-        $content = File::get(app_path('Enums/TestErrorRespCode.php'));
+        $content = File::get(app_path('Enums/TestRespCode.php'));
 
         $this->assertStringContainsString('namespace App\Enums;', $content);
-        $this->assertStringContainsString('enum TestErrorRespCode', $content);
+        $this->assertStringContainsString('enum TestRespCode', $content);
         $this->assertStringContainsString('implements ThrowableEnum', $content);
-        $this->assertStringContainsString('case InvalidUsername = 2001;', $content);
+        $this->assertStringContainsString('case ExampleError = 2001;', $content);
         $this->assertStringContainsString('public function message(): string', $content);
         $this->assertStringContainsString('public function statusCode(): int', $content);
         $this->assertStringContainsString('public function httpStatusCode(): int', $content);
@@ -75,11 +94,12 @@ class MakeErrorRespCodeCommandTest extends TestCase
 
     public function test_created_enum_has_usage_examples()
     {
-        $this->artisan('make:error-resp-code', ['name' => 'TestErrorRespCode'])
-            ->expectsOutput('Usage examples:')
-            ->expectsOutput('error_if(true, TestErrorRespCode::SomeError);')
-            ->expectsOutput('error_unless(false, TestErrorRespCode::AnotherError);')
-            ->expectsOutput('error(TestErrorRespCode::CustomError);')
+        $this->artisan('make:error-resp-code', ['name' => 'Test'])
+            ->expectsOutput('🚀 Usage examples:')
+            ->expectsOutput('   error_if(true, TestRespCode::ExampleError);')
+            ->expectsOutput('   error_unless(false, TestRespCode::ExampleError);')
+            ->expectsOutput('   error(TestRespCode::ExampleError);')
+            ->expectsOutput('💡 Tip: You can add more cases to the enum as needed!')
             ->assertExitCode(0);
     }
 }
