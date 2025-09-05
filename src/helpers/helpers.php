@@ -12,8 +12,9 @@ if (!function_exists('error_response')) {
     function error_response(string|ThrowableEnum $message, string|int|null $code = null, ?Throwable $previous = null)
     {
         if ($message instanceof ThrowableEnum) {
-            // For ThrowableEnum, pass it directly to ErrorResponse
-            throw new ErrorResponse($message, $code, $previous);
+            // For ThrowableEnum, pass it directly to ErrorResponse with httpCode
+            $httpCode = $message->httpStatusCode();
+            throw new ErrorResponse($message, $code, $previous, $httpCode);
         }
 
         $httpCode = Response::HTTP_INTERNAL_SERVER_ERROR;
