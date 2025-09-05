@@ -3,42 +3,21 @@
 namespace {{Namespace}};
 
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
+use Aslnbxrz\SimpleException\Traits\HasRespCodeTranslation;
 use Symfony\Component\HttpFoundation\Response;
 
 enum {{ClassName}}: int implements ThrowableEnum
 {
+    use HasRespCodeTranslation;
+    
     // Add your error codes here
     case UnknownError = 2001;
 
-    public function message(): string
+    protected function getDefaultMessage(): string
     {
-        $messages = match ($this) {
+        return match ($this) {
             self::UnknownError => 'An unknown error occurred',
         };
-
-        // Try to get translated message if Laravel is available, fallback to default
-        if (function_exists('__')) {
-            try {
-                $translationKey = $this->getTranslationKey();
-                $translated = __($translationKey, [], $messages);
-                return $translated === $translationKey ? $messages : $translated;
-            } catch (\Exception $e) {
-                // If translation fails, return default message
-                return $messages;
-            }
-        }
-
-        return $messages;
-    }
-
-    private function getTranslationKey(): string
-    {
-        return $this->camelToSnake($this->name);
-    }
-
-    private function camelToSnake(string $string): string
-    {
-        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $string));
     }
 
     public function statusCode(): int

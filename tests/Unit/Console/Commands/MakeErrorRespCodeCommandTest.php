@@ -118,7 +118,7 @@ class MakeErrorRespCodeCommandTest extends TestCase
         $this->assertStringContainsString('enum TestRespCode', $content);
         $this->assertStringContainsString('implements ThrowableEnum', $content);
         $this->assertStringContainsString('case UnknownError = 2001;', $content);
-        $this->assertStringContainsString('public function message(): string', $content);
+        $this->assertStringContainsString('protected function getDefaultMessage(): string', $content);
         $this->assertStringContainsString('public function statusCode(): int', $content);
         $this->assertStringContainsString('public function httpStatusCode(): int', $content);
     }

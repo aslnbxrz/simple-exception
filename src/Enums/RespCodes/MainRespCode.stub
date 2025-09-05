@@ -3,11 +3,15 @@
 namespace App\Enums\RespCodes;
 
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
+use Aslnbxrz\SimpleException\Traits\HasRespCodeTranslation;
+use Aslnbxrz\SimpleException\Traits\HasStatusCode;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 enum MainRespCode: int implements ThrowableEnum
 {
+    use HasRespCodeTranslation, HasStatusCode;
+
     case AppVersionOutdated = 426;
     case AppMissingHeaders = 1000;
     case AppWrongLanguage = 1001;
@@ -24,24 +28,8 @@ enum MainRespCode: int implements ThrowableEnum
     case TooManyRequests = 429;
     case RateLimitExceeded = 430;
 
-    public function message(): string
+    protected function getDefaultMessage(): string
     {
-        // Try to get translated message if Laravel is available
-        if (function_exists('__')) {
-            try {
-                $translationKey = 'main.' . $this->getTranslationKey();
-                $translated = __($translationKey);
-                
-                // If translation exists and is different from key, return it
-                if ($translated !== $translationKey) {
-                    return $translated;
-                }
-            } catch (\Exception $e) {
-                // If translation fails, fall back to default messages
-            }
-        }
-
-        // Fallback to default messages
         return match ($this) {
             self::AppVersionOutdated => 'Application version is outdated. Please update to the latest version.',
             self::AppMissingHeaders => 'Required headers are missing from the request.',
@@ -61,21 +49,6 @@ enum MainRespCode: int implements ThrowableEnum
         };
     }
 
-    private function getTranslationKey(): string
-    {
-        return $this->camelToSnake($this->name);
-    }
-
-    private function camelToSnake(string $string): string
-    {
-        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $string));
-    }
-
-    public function statusCode(): int
-    {
-        return $this->value;
-    }
-
     public function httpStatusCode(): int
     {
         return match ($this) {
@@ -83,15 +56,21 @@ enum MainRespCode: int implements ThrowableEnum
             self::AppMissingHeaders => Response::HTTP_BAD_REQUEST,
             self::AppWrongLanguage => Response::HTTP_NOT_ACCEPTABLE,
             self::ValidationError => Response::HTTP_UNPROCESSABLE_ENTITY,
-            self::AppInvalidDeviceModel => Response::HTTP_INTERNAL_SERVER_ERROR,
-            self::MaintenanceMode => Response::HTTP_SERVICE_UNAVAILABLE,
-            self::ServiceUnavailable => Response::HTTP_SERVICE_UNAVAILABLE,
-            self::InternalServerError => Response::HTTP_INTERNAL_SERVER_ERROR,
+            self::AppInvalidDeviceModel, self::InternalServerError => Response::HTTP_INTERNAL_SERVER_ERROR,
+
+            // Maintenance mode
+            self::MaintenanceMode, self::ServiceUnavailable => Response::HTTP_SERVICE_UNAVAILABLE,
+
+            // Server errors
             self::BadGateway => Response::HTTP_BAD_GATEWAY,
             self::GatewayTimeout => Response::HTTP_GATEWAY_TIMEOUT,
+
+            // Authentication errors
             self::Unauthorized => Response::HTTP_UNAUTHORIZED,
             self::Forbidden => Response::HTTP_FORBIDDEN,
             self::NotFound => Response::HTTP_NOT_FOUND,
+
+            // Rate limiting
             self::TooManyRequests => Response::HTTP_TOO_MANY_REQUESTS,
             self::RateLimitExceeded => Response::HTTP_TOO_MANY_REQUESTS,
         };
