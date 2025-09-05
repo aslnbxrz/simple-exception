@@ -100,10 +100,11 @@ class EnumTranslationSync
         }
 
         try {
-            $content = $this->files->get($filePath);
-            $translations = eval('?>' . $content);
+            // Use include instead of eval for better security and error handling
+            $translations = include $filePath;
             return is_array($translations) ? $translations : [];
         } catch (\Exception $e) {
+            // If there's a syntax error, return empty array
             return [];
         }
     }
