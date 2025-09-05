@@ -117,7 +117,7 @@ class MakeErrorRespCodeCommandTest extends TestCase
         $this->assertStringContainsString('namespace App\\Enums;', $content);
         $this->assertStringContainsString('enum TestRespCode', $content);
         $this->assertStringContainsString('implements ThrowableEnum', $content);
-        $this->assertStringContainsString('case ExampleError = 2001;', $content);
+        $this->assertStringContainsString('case UnknownError = 2001;', $content);
         $this->assertStringContainsString('public function message(): string', $content);
         $this->assertStringContainsString('public function statusCode(): int', $content);
         $this->assertStringContainsString('public function httpStatusCode(): int', $content);
@@ -127,9 +127,9 @@ class MakeErrorRespCodeCommandTest extends TestCase
     {
         $this->artisan('make:error-resp-code', ['name' => 'Test'])
             ->expectsOutput('🚀 Usage examples:')
-            ->expectsOutput('   error_if(true, TestRespCode::ExampleError);')
-            ->expectsOutput('   error_unless(false, TestRespCode::ExampleError);')
-            ->expectsOutput('   error(TestRespCode::ExampleError);')
+            ->expectsOutput('   error_if(true, TestRespCode::UnknownError);')
+            ->expectsOutput('   error_unless(false, TestRespCode::UnknownError);')
+            ->expectsOutput('   error(TestRespCode::UnknownError);')
             ->expectsOutput('💡 Tip: You can add more cases to the enum as needed!')
             ->assertExitCode(0);
     }

@@ -8,12 +8,12 @@ use Symfony\Component\HttpFoundation\Response;
 enum {{ClassName}}: int implements ThrowableEnum
 {
     // Add your error codes here
-    case ExampleError = 2001;
+    case UnknownError = 2001;
 
     public function message(): string
     {
         $messages = match ($this) {
-            self::ExampleError => 'Example error message',
+            self::UnknownError => 'An unknown error occurred',
         };
 
         // Try to get translated message if Laravel is available, fallback to default
@@ -33,7 +33,7 @@ enum {{ClassName}}: int implements ThrowableEnum
     private function getTranslationKey(): string
     {
         return match ($this) {
-            self::ExampleError => 'example_error',
+            self::UnknownError => 'unknown_error',
         };
     }
 
@@ -45,7 +45,7 @@ enum {{ClassName}}: int implements ThrowableEnum
     public function httpStatusCode(): int
     {
         return match ($this) {
-            self::ExampleError => Response::HTTP_BAD_REQUEST,
+            self::UnknownError => Response::HTTP_INTERNAL_SERVER_ERROR,
         };
     }
 }

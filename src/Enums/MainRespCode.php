@@ -60,7 +60,7 @@ enum MainRespCode: int implements ThrowableEnum
             self::AppMissingHeaders => Response::HTTP_BAD_REQUEST,
             self::AppWrongLanguage => Response::HTTP_NOT_ACCEPTABLE,
             self::ValidationError => Response::HTTP_UNPROCESSABLE_ENTITY,
-            default => Response::HTTP_INTERNAL_SERVER_ERROR,
+            self::AppInvalidDeviceModel => Response::HTTP_INTERNAL_SERVER_ERROR,
         };
     }
 }

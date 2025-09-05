@@ -58,9 +58,9 @@ class MakeErrorRespCodeCommand extends Command
         $this->line("📦 Namespace: {$namespace}");
         $this->line("");
         $this->line("🚀 Usage examples:");
-        $this->line("   error_if(true, {$className}::ExampleError);");
-        $this->line("   error_unless(false, {$className}::ExampleError);");
-        $this->line("   error({$className}::ExampleError);");
+        $this->line("   error_if(true, {$className}::UnknownError);");
+        $this->line("   error_unless(false, {$className}::UnknownError);");
+        $this->line("   error({$className}::UnknownError);");
         $this->line("");
         $this->line("💡 Tip: You can add more cases to the enum as needed!");
         $this->line("⚙️  Config: Directory set to '{$respCodesDir}' in simple-exception config");
