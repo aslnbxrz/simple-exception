@@ -40,7 +40,7 @@ class SimpleExceptionServiceProvider extends ServiceProvider
             ], 'simple-exception-config');
 
             $this->publishes([
-                __DIR__.'/../lang' => $this->app->langPath('vendor/simple-exception'),
+                __DIR__.'/../../lang' => $this->app->langPath('vendor/simple-exception'),
             ], 'simple-exception-lang');
 
             // Register Artisan commands
@@ -50,7 +50,7 @@ class SimpleExceptionServiceProvider extends ServiceProvider
             ]);
         }
 
-        $this->loadTranslationsFrom(__DIR__.'/../lang', 'simple-exception');
+        $this->loadTranslationsFrom(__DIR__.'/../../lang', 'simple-exception');
     }
 
     /**
