@@ -54,6 +54,9 @@ class MakeErrorRespCodeCommand extends Command
         // Faylni yozish
         File::put($filePath, $content);
 
+        // Lang faylini yaratish
+        $this->createLangFile($className, $respCodesDir);
+
         $this->info("✅ Error response code enum {$className} created successfully!");
         $this->line("📁 File: {$filePath}");
         $this->line("📦 Namespace: {$namespace}");
@@ -143,5 +146,52 @@ class MakeErrorRespCodeCommand extends Command
         $dirParts = explode('/', trim($respCodesDir, '/'));
         $namespace = 'App\\' . implode('\\', array_map('ucfirst', $dirParts));
         return $namespace;
+    }
+
+    /**
+     * Create language file for the enum
+     */
+    private function createLangFile(string $className, string $respCodesDir): void
+    {
+        $lowerClassName = strtolower($className);
+        $langDir = lang_path("vendor/simple-exception/{$lowerClassName}");
+        
+        // Create lang directory if it doesn't exist
+        if (!File::exists($langDir)) {
+            File::makeDirectory($langDir, 0755, true, true);
+        }
+
+        $langFile = $langDir . '/en.php';
+        
+        // Don't overwrite existing lang file
+        if (File::exists($langFile)) {
+            $this->line("📝 Language file already exists: {$langFile}");
+            return;
+        }
+
+        $langContent = $this->generateLangContent($className);
+        File::put($langFile, $langContent);
+        
+        $this->line("📝 Language file created: {$langFile}");
+    }
+
+    /**
+     * Generate language file content
+     */
+    private function generateLangContent(string $className): string
+    {
+        $lowerClassName = strtolower($className);
+        
+        return "<?php
+
+return [
+    'unknown_error' => 'An unknown error occurred',
+    
+    // Add more translations as needed:
+    // 'not_found' => 'Resource not found',
+    // 'validation_error' => 'Validation failed',
+    // 'access_denied' => 'Access denied',
+];
+";
     }
 }

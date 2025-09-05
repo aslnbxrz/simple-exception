@@ -3,6 +3,7 @@
 namespace Aslnbxrz\SimpleException\Enums;
 
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 enum MainRespCode: int implements ThrowableEnum
@@ -39,13 +40,12 @@ enum MainRespCode: int implements ThrowableEnum
 
     private function getTranslationKey(): string
     {
-        return match ($this) {
-            self::AppVersionOutdated => 'app_version_outdated',
-            self::AppMissingHeaders => 'app_missing_headers',
-            self::AppWrongLanguage => 'app_wrong_language',
-            self::ValidationError => 'validation_error',
-            self::AppInvalidDeviceModel => 'app_invalid_device_model',
-        };
+        return Str::snake($this->name);
+    }
+
+    private function camelToSnake(string $string): string
+    {
+        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $string));
     }
 
     public function statusCode(): int

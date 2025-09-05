@@ -33,9 +33,12 @@ enum {{ClassName}}: int implements ThrowableEnum
 
     private function getTranslationKey(): string
     {
-        return match ($this) {
-            self::UnknownError => 'unknown_error',
-        };
+        return $this->camelToSnake($this->name);
+    }
+
+    private function camelToSnake(string $string): string
+    {
+        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $string));
     }
 
     public function statusCode(): int

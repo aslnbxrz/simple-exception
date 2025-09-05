@@ -4,6 +4,7 @@ namespace Aslnbxrz\SimpleException;
 
 use Aslnbxrz\SimpleException\Exceptions\ExceptionHandler;
 use Aslnbxrz\SimpleException\Console\Commands\MakeErrorRespCodeCommand;
+use Aslnbxrz\SimpleException\Console\Commands\SyncTranslationsCommand;
 use Illuminate\Contracts\Debug\ExceptionHandler as LaravelExceptionHandler;
 use Illuminate\Support\ServiceProvider;
 
@@ -45,6 +46,7 @@ class SimpleExceptionServiceProvider extends ServiceProvider
             // Register Artisan commands
             $this->commands([
                 MakeErrorRespCodeCommand::class,
+                SyncTranslationsCommand::class,
             ]);
         }
 
