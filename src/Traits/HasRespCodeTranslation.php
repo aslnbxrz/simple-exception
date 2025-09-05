@@ -18,7 +18,7 @@ trait HasRespCodeTranslation
             try {
                 $translationKey = $this->getTranslationKey();
                 
-                // Try with simple-exception namespace
+                // Try with simple-exception namespace first
                 $translated = __('simple-exception::' . $translationKey);
                 
                 // If translation exists and is different from key, return it
@@ -29,6 +29,12 @@ trait HasRespCodeTranslation
                 // Try without namespace as fallback
                 $translated = __($translationKey);
                 if ($translated !== $translationKey) {
+                    return $translated;
+                }
+                
+                // Try direct file access as last resort
+                $translated = $this->getDirectTranslation($translationKey);
+                if ($translated) {
                     return $translated;
                 }
             } catch (Exception $e) {
@@ -62,6 +68,52 @@ trait HasRespCodeTranslation
             return substr($className, 0, -8); // Remove 'RespCode' (8 characters)
         }
         return $className;
+    }
+
+    /**
+     * Get translation directly from file as last resort
+     */
+    private function getDirectTranslation(string $translationKey): ?string
+    {
+        try {
+            // Try user's lang directory first
+            $userLangPath = lang_path('vendor/simple-exception');
+            if (is_dir($userLangPath)) {
+                $enumName = $this->getEnumName();
+                $caseName = Str::snake($this->name);
+                $locale = app()->getLocale();
+                
+                $filePath = $userLangPath . '/' . $enumName . '/' . $locale . '.php';
+                
+                if (file_exists($filePath)) {
+                    $translations = include $filePath;
+                    if (isset($translations[$caseName])) {
+                        return $translations[$caseName];
+                    }
+                }
+            }
+            
+            // Try package's lang directory
+            $packageLangPath = __DIR__ . '/../lang';
+            if (is_dir($packageLangPath)) {
+                $enumName = $this->getEnumName();
+                $caseName = Str::snake($this->name);
+                $locale = app()->getLocale();
+                
+                $filePath = $packageLangPath . '/' . $enumName . '/' . $locale . '.php';
+                
+                if (file_exists($filePath)) {
+                    $translations = include $filePath;
+                    if (isset($translations[$caseName])) {
+                        return $translations[$caseName];
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            // If direct access fails, return null
+        }
+        
+        return null;
     }
 
 }

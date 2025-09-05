@@ -55,6 +55,11 @@ class SimpleExceptionServiceProvider extends ServiceProvider
         }
 
         $this->loadTranslationsFrom(__DIR__.'/lang', 'simple-exception');
+        
+        // Also load from user's lang directory if it exists
+        if (is_dir(lang_path('vendor/simple-exception'))) {
+            $this->loadTranslationsFrom(lang_path('vendor/simple-exception'), 'simple-exception');
+        }
     }
 
     /**
