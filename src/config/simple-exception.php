@@ -18,7 +18,7 @@ return [
     // Enum generation configuration
     'enum_generation' => [
         // Directory for generated error response codes
-        'resp_codes_dir' => env('SIMPLE_EXCEPTION_RESP_CODES_DIR', 'Enums'),
+        'resp_codes_dir' => env('SIMPLE_EXCEPTION_RESP_CODES_DIR', 'Enums/RespCodes'),
     ],
     
     // Translation configuration

@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Config;
 
 class MakeErrorRespCodeCommand extends Command
 {
-    protected $signature = 'make:error-resp-code {name? : The name of the error response code enum}';
+    protected $signature = 'make:resp-code {name? : The name of the error response code enum}';
     protected $description = 'Create a new error response code enum';
 
     public function handle()
@@ -35,7 +35,7 @@ class MakeErrorRespCodeCommand extends Command
         $filePath = $enumPath . '/' . $className . '.php';
 
         if (File::exists($filePath)) {
-            $this->error("Error response code enum {$className} already exists!");
+            $this->error("⚠️ Error response code enum {$className} already exists at {$filePath}!");
             return 1;
         }
 

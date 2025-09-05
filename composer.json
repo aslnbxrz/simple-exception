@@ -36,11 +36,6 @@
       "src/helpers/helpers.php"
     ]
   },
-  "files": [
-    "lang/main/en.php",
-    "lang/main/uz.php",
-    "lang/main/ru.php"
-  ],
   "autoload-dev": {
     "psr-4": {
       "Aslnbxrz\\SimpleException\\Tests\\": "tests/"
