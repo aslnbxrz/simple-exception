@@ -3,7 +3,7 @@
 namespace Aslnbxrz\SimpleException\Exceptions;
 
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
-use Aslnbxrz\SimpleException\Enums\MainRespCode;
+use Aslnbxrz\SimpleException\Enums\RespCodes\MainRespCode;
 use Illuminate\Foundation\Exceptions\Handler;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
@@ -96,15 +96,16 @@ class ExceptionHandler extends Handler
      */
     public function errorResponse(
         string|array|Throwable|ErrorResponse|ThrowableEnum $message,
-        string|int|null|ThrowableEnum $code = null,
-        ?int $httpCode = null
-    ): JsonResponse {
+        string|int|null|ThrowableEnum                      $code = null,
+        ?int                                               $httpCode = null
+    ): JsonResponse
+    {
         [$processedMessage, $processedCode, $processedHttpCode] = $this->processErrorParameters(
             $message, $code, $httpCode
         );
 
         $response = $this->buildResponse($processedMessage, $processedCode, $this->getDebugMeta($message));
-        
+
         return Response::json($response, $processedHttpCode);
     }
 
@@ -113,9 +114,10 @@ class ExceptionHandler extends Handler
      */
     private function processErrorParameters(
         string|array|Throwable|ErrorResponse|ThrowableEnum $message,
-        string|int|null|ThrowableEnum $code,
-        ?int $httpCode
-    ): array {
+        string|int|null|ThrowableEnum                      $code,
+        ?int                                               $httpCode
+    ): array
+    {
         if ($message instanceof Throwable) {
             return $this->processThrowableMessage($message, $code, $httpCode);
         }
@@ -218,6 +220,7 @@ class ExceptionHandler extends Handler
         $response = [
             $config['success_key'] => false,
             $config['data_key'] => null,
+            'message' => $this->sanitizeMessage($message),
             $config['error_key'] => [
                 'message' => $this->sanitizeMessage($message),
                 'code' => $this->sanitizeCode($code),
