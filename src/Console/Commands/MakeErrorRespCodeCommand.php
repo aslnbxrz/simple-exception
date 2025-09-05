@@ -42,12 +42,13 @@ class MakeErrorRespCodeCommand extends Command
         // Stub faylini o'qish
         $stub = File::get(__DIR__ . '/stubs/ErrorRespCode.stub');
         
-        // Get namespace from config
-        $namespace = $this->getEnumNamespace($respCodesDir);
+        // Generate namespace from directory
+        $namespace = $this->generateNamespace($respCodesDir);
         
         // Stub'ni replace qilish
         $content = str_replace('{{ClassName}}', $className, $stub);
         $content = str_replace('{{LowerName}}', strtolower($name), $content);
+        $content = str_replace('{{LowerClassName}}', strtolower($className), $content);
         $content = str_replace('{{Namespace}}', $namespace, $content);
 
         // Faylni yozish
@@ -134,20 +135,13 @@ class MakeErrorRespCodeCommand extends Command
     }
 
     /**
-     * Get enum namespace from config or generate from directory
+     * Generate namespace from directory path
      */
-    private function getEnumNamespace(string $respCodesDir): string
+    private function generateNamespace(string $respCodesDir): string
     {
-        $autoNamespace = Config::get('simple-exception.enum_generation.auto_namespace', true);
-        
-        if ($autoNamespace) {
-            // Generate namespace from directory
-            $dirParts = explode('/', trim($respCodesDir, '/'));
-            $namespace = 'App\\' . implode('\\', array_map('ucfirst', $dirParts));
-            return $namespace;
-        }
-        
-        // Use configured namespace
-        return Config::get('simple-exception.enum_generation.namespace', 'App\\Enums');
+        // Convert directory path to namespace
+        $dirParts = explode('/', trim($respCodesDir, '/'));
+        $namespace = 'App\\' . implode('\\', array_map('ucfirst', $dirParts));
+        return $namespace;
     }
 }

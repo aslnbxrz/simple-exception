@@ -31,6 +31,7 @@ class MakeErrorRespCodeCommandTest extends TestCase
             app_path('Enums/UserRespCode.php'),
             app_path('CustomEnums/TestRespCode.php'),
             app_path('CustomEnums/AnotherRespCode.php'),
+            app_path('Custom/ErrorCodes/TestRespCode.php'),
         ];
 
         foreach ($testFiles as $file) {
@@ -63,18 +64,17 @@ class MakeErrorRespCodeCommandTest extends TestCase
         $this->assertTrue(File::exists(app_path('CustomEnums/TestRespCode.php')));
     }
 
-    public function test_command_uses_custom_namespace()
+    public function test_command_generates_namespace_from_directory()
     {
-        // Set custom namespace in config
-        Config::set('simple-exception.enum_generation.namespace', 'App\\Custom\\Enums');
-        Config::set('simple-exception.enum_generation.auto_namespace', false);
+        // Set custom directory in config
+        Config::set('simple-exception.enum_generation.resp_codes_dir', 'Custom/ErrorCodes');
         
         $this->artisan('make:error-resp-code', ['name' => 'Test'])
-            ->expectsOutput('📦 Namespace: App\\Custom\\Enums')
+            ->expectsOutput('📦 Namespace: App\\Custom\\ErrorCodes')
             ->assertExitCode(0);
 
-        $content = File::get(app_path('Enums/TestRespCode.php'));
-        $this->assertStringContainsString('namespace App\\Custom\\Enums;', $content);
+        $content = File::get(app_path('Custom/ErrorCodes/TestRespCode.php'));
+        $this->assertStringContainsString('namespace App\\Custom\\ErrorCodes;', $content);
     }
 
     public function test_command_automatically_adds_resp_code_suffix()

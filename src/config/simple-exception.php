@@ -19,12 +19,6 @@ return [
     'enum_generation' => [
         // Directory for generated error response codes
         'resp_codes_dir' => env('SIMPLE_EXCEPTION_RESP_CODES_DIR', 'Enums'),
-        
-        // Default namespace for generated enums
-        'namespace' => env('SIMPLE_EXCEPTION_ENUM_NAMESPACE', 'App\\Enums'),
-        
-        // Auto-generate namespace from directory
-        'auto_namespace' => env('SIMPLE_EXCEPTION_AUTO_NAMESPACE', true),
     ],
     
     // Performance optimizations
