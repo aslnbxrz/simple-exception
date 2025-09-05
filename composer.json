@@ -1,0 +1,59 @@
+{
+  "name": "aslnbxrz/simple-exception",
+  "description": "A comprehensive exception handling package for Laravel with custom error responses and enum-based error codes",
+  "type": "library",
+  "keywords": ["laravel", "exception", "error-handling", "api", "response"],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "aslnbxrz",
+      "email": "bexruz.aslonov1@gmail.com"
+    },
+    {
+      "name": "webdeveloperr",
+      "email": "webdeveloperr@mail.ru"
+    }
+  ],
+  "require": {
+    "php": "^8.2",
+    "illuminate/support": "^10.0|^11.0|^12.0",
+    "illuminate/http": "^10.0|^11.0|^12.0",
+    "illuminate/validation": "^10.0|^11.0|^12.0",
+    "illuminate/console": "^10.0|^11.0|^12.0",
+    "symfony/http-foundation": "^6.0|^7.0"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^8.0|^9.0",
+    "phpunit/phpunit": "^10.0|^11.0",
+    "mockery/mockery": "^1.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "Aslnbxrz\\SimpleException\\": "src/"
+    },
+    "files": [
+      "src/helpers/helpers.php"
+    ]
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Aslnbxrz\\SimpleException\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Aslnbxrz\\SimpleException\\SimpleExceptionServiceProvider"
+      ],
+      "aliases": {
+        "SimpleException": "Aslnbxrz\\SimpleException\\Facades\\SimpleException"
+      }
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "scripts": {
+    "test": "phpunit",
+    "test-coverage": "phpunit --coverage-html coverage"
+  }
+}
