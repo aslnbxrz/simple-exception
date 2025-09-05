@@ -23,8 +23,10 @@ class EnumTranslationSyncTest extends TestCase
     {
         // Clean up test files
         $testFiles = [
-            lang_path('vendor/simple-exception/test_enum.php'),
-            lang_path('vendor/simple-exception/user.php'),
+            lang_path('vendor/simple-exception/test_enum/en.php'),
+            lang_path('vendor/simple-exception/test_enum/uz.php'),
+            lang_path('vendor/simple-exception/user/en.php'),
+            lang_path('vendor/simple-exception/user/uz.php'),
         ];
 
         foreach ($testFiles as $file) {
@@ -43,6 +45,7 @@ class EnumTranslationSyncTest extends TestCase
         $method->setAccessible(true);
 
         $this->assertEquals('user', $method->invoke($this->syncService, 'App\\Enums\\UserRespCode'));
+        $this->assertEquals('main', $method->invoke($this->syncService, 'Aslnbxrz\\SimpleException\\Enums\\MainRespCode'));
         $this->assertEquals('test_enum', $method->invoke($this->syncService, 'TestEnum'));
     }
 
@@ -53,7 +56,7 @@ class EnumTranslationSyncTest extends TestCase
         $method->setAccessible(true);
 
         $path = $method->invoke($this->syncService, 'test_enum', 'en');
-        $expectedPath = lang_path('vendor/simple-exception/test_enum.php');
+        $expectedPath = lang_path('vendor/simple-exception/test_enum/en.php');
         
         $this->assertEquals($expectedPath, $path);
     }

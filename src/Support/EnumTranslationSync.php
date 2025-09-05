@@ -64,6 +64,11 @@ class EnumTranslationSync
     {
         $className = class_basename($enumClass);
         
+        // Special case for MainRespCode - use 'main'
+        if ($className === 'MainRespCode') {
+            return 'main';
+        }
+        
         // Remove RespCode suffix if present
         $className = preg_replace('/RespCode$/i', '', $className);
         
@@ -76,13 +81,13 @@ class EnumTranslationSync
     protected function getTranslationFilePath(string $fileName, string $locale): string
     {
         $basePath = Config::get('simple-exception.translations.base_path', 'vendor/simple-exception');
-        $langDir = lang_path("{$basePath}");
+        $langDir = lang_path("{$basePath}/{$fileName}");
         
         if (!$this->files->exists($langDir)) {
             $this->files->makeDirectory($langDir, 0755, true, true);
         }
 
-        return $langDir . "/{$fileName}.php";
+        return $langDir . "/{$locale}.php";
     }
 
     /**

@@ -19,7 +19,7 @@ enum {{ClassName}}: int implements ThrowableEnum
         // Try to get translated message if Laravel is available, fallback to default
         if (function_exists('__')) {
             try {
-                $translationKey = '{{LowerClassName}}.' . $this->getTranslationKey();
+                $translationKey = $this->getTranslationKey();
                 $translated = __($translationKey, [], $messages);
                 return $translated === $translationKey ? $messages : $translated;
             } catch (\Exception $e) {

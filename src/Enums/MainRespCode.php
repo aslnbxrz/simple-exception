@@ -27,8 +27,9 @@ enum MainRespCode: int implements ThrowableEnum
         // Try to get translated message if Laravel is available, fallback to default
         if (function_exists('__')) {
             try {
-                $translated = __('simple-exception::main.' . $this->getTranslationKey(), [], $messages);
-                return $translated === 'simple-exception::main.' . $this->getTranslationKey() ? $messages : $translated;
+                $translationKey = $this->getTranslationKey();
+                $translated = __($translationKey, [], $messages);
+                return $translated === $translationKey ? $messages : $translated;
             } catch (\Exception $e) {
                 // If translation fails, return default message
                 return $messages;
@@ -41,11 +42,6 @@ enum MainRespCode: int implements ThrowableEnum
     private function getTranslationKey(): string
     {
         return Str::snake($this->name);
-    }
-
-    private function camelToSnake(string $string): string
-    {
-        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $string));
     }
 
     public function statusCode(): int

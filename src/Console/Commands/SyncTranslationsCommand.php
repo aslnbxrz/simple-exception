@@ -9,10 +9,11 @@ use Illuminate\Filesystem\Filesystem;
 class SyncTranslationsCommand extends Command
 {
     protected $signature = 'sync:enum-translations 
-                            {enum : The enum class name (e.g., UserRespCode or App\\Enums\\UserRespCode)}
+                            {enum? : The enum class name (e.g., UserRespCode or App\\Enums\\UserRespCode). If not provided, syncs all enums.}
                             {--locale=en : Target locale}
                             {--file= : Custom file name (default: snake case of enum name)}
-                            {--use-messages : Use enum message() method for default text}';
+                            {--use-messages : Use enum message() method for default text}
+                            {--all : Sync all available enums}';
 
     protected $description = 'Sync translations for enum classes that implement ThrowableEnum';
 
@@ -30,6 +31,12 @@ class SyncTranslationsCommand extends Command
         $locale = $this->option('locale');
         $fileName = $this->option('file');
         $useMessages = $this->option('use-messages');
+        $syncAll = $this->option('all');
+
+        // If no enum provided or --all flag, sync all enums
+        if (!$enumClass || $syncAll) {
+            return $this->syncAllEnums($locale, $useMessages);
+        }
 
         // Normalize enum class name
         $enumClass = $this->normalizeEnumClass($enumClass);
@@ -47,6 +54,53 @@ class SyncTranslationsCommand extends Command
             $this->error("❌ Error: " . $e->getMessage());
             return 1;
         }
+    }
+
+    /**
+     * Sync all available enums
+     */
+    protected function syncAllEnums(string $locale, bool $useMessages): int
+    {
+        $this->info("🔄 Syncing translations for all available enums...");
+        $this->line("");
+
+        $availableEnums = $this->syncService->getAvailableEnums();
+
+        if (empty($availableEnums)) {
+            $this->warn("⚠️  No enum classes found that implement ThrowableEnum interface.");
+            $this->line("Make sure your enums are in the configured directory and implement ThrowableEnum interface.");
+            return 0;
+        }
+
+        $this->info("📋 Found " . count($availableEnums) . " enum(s):");
+        foreach ($availableEnums as $enum) {
+            $this->line("   • {$enum}");
+        }
+        $this->line("");
+
+        $successCount = 0;
+        $errorCount = 0;
+        $results = [];
+
+        foreach ($availableEnums as $enumClass) {
+            try {
+                $this->line("🔄 Syncing {$enumClass}...");
+                
+                $result = $this->syncService->sync($enumClass, $locale, null, $useMessages);
+                $results[] = $result;
+                $successCount++;
+                
+                $this->line("   ✅ {$result['file_name']}.php created/updated");
+            } catch (\Exception $e) {
+                $this->error("   ❌ Error syncing {$enumClass}: " . $e->getMessage());
+                $errorCount++;
+            }
+        }
+
+        $this->line("");
+        $this->displaySummaryResults($successCount, $errorCount, $results);
+
+        return $errorCount > 0 ? 1 : 0;
     }
 
     /**
@@ -93,6 +147,43 @@ class SyncTranslationsCommand extends Command
 
         if ($result['updated_cases'] > 0) {
             $this->line("⚠️  <comment>Note:</comment> Some existing translation keys were updated with new default values.");
+        }
+    }
+
+    /**
+     * Display summary results for all enums
+     */
+    protected function displaySummaryResults(int $successCount, int $errorCount, array $results): void
+    {
+        $this->info("✅ Translation sync completed!");
+        $this->line("");
+        
+        $this->line("📊 <comment>Summary:</comment>");
+        $this->line("   ✅ Successfully synced: <info>{$successCount}</info> enum(s)");
+        
+        if ($errorCount > 0) {
+            $this->line("   ❌ Failed: <error>{$errorCount}</error> enum(s)");
+        }
+        
+        $totalCases = array_sum(array_column($results, 'total_cases'));
+        $totalNewCases = array_sum(array_column($results, 'new_cases'));
+        
+        $this->line("   📝 Total cases processed: <info>{$totalCases}</info>");
+        $this->line("   🆕 New cases added: <info>{$totalNewCases}</info>");
+        $this->line("");
+
+        if ($successCount > 0) {
+            $this->line("📁 <comment>Created/Updated files:</comment>");
+            foreach ($results as $result) {
+                $this->line("   • {$result['file_path']}");
+            }
+            $this->line("");
+        }
+
+        if ($errorCount === 0) {
+            $this->line("🎉 All enums synced successfully!");
+        } else {
+            $this->line("⚠️  Some enums failed to sync. Check the errors above.");
         }
     }
 }
