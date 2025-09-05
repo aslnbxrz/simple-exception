@@ -153,8 +153,9 @@ class MakeErrorRespCodeCommand extends Command
      */
     private function createLangFile(string $className, string $respCodesDir): void
     {
-        $lowerClassName = strtolower($className);
-        $langDir = lang_path("vendor/simple-exception/{$lowerClassName}");
+        // Remove 'RespCode' suffix and convert to snake_case
+        $enumName = $this->getEnumNameFromClassName($className);
+        $langDir = lang_path("vendor/simple-exception/{$enumName}");
 
         // Create lang directory if it doesn't exist
         if (!File::exists($langDir)) {
@@ -185,6 +186,20 @@ class MakeErrorRespCodeCommand extends Command
                 $this->line("   • {$file}");
             }
         }
+    }
+
+    /**
+     * Get enum name from class name (remove RespCode suffix)
+     */
+    private function getEnumNameFromClassName(string $className): string
+    {
+        // Remove 'RespCode' suffix if present
+        if (str_ends_with($className, 'RespCode')) {
+            $className = substr($className, 0, -8); // Remove 'RespCode' (8 characters)
+        }
+        
+        // Convert to snake_case
+        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $className));
     }
 
     /**
@@ -220,7 +235,7 @@ class MakeErrorRespCodeCommand extends Command
      */
     private function generateLangContent(string $className, string $locale = 'en'): string
     {
-        $lowerClassName = strtolower($className);
+        $enumName = $this->getEnumNameFromClassName($className);
 
         // Different messages for different locales
         $messages = match ($locale) {
