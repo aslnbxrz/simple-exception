@@ -23,7 +23,23 @@ class SimpleExceptionServiceTest extends TestCase
         $this->expectException(ErrorResponse::class);
         $this->expectExceptionMessage('Application version is outdated. Please update to the latest version.');
         
-        $this->service->error(MainRespCode::AppVersionOutdated);
+        try {
+            $this->service->error(MainRespCode::AppVersionOutdated);
+        } catch (ErrorResponse $e) {
+            // Test HTTP status code
+            $this->assertEquals(426, $e->getHttpCode());
+            $this->assertEquals(426, $e->getCode());
+            
+            // Debug: Check if ErrorResponse has httpCode property
+            $reflection = new \ReflectionClass($e);
+            $httpCodeProperty = $reflection->getProperty('httpCode');
+            $httpCodeProperty->setAccessible(true);
+            $httpCodeValue = $httpCodeProperty->getValue($e);
+            
+            $this->assertEquals(426, $httpCodeValue);
+            
+            throw $e;
+        }
     }
 
     public function test_error_throws_exception_with_string()

@@ -134,12 +134,12 @@ class ExceptionHandler extends Handler
      */
     private function processThrowableMessage(Throwable $exception, $code, ?int $httpCode): array
     {
-        $processedCode = $code instanceof ThrowableEnum ? $code->value : ($code ?? $exception->getCode());
-        
-        // If code is ThrowableEnum, use its httpStatusCode method
+        // If code is ThrowableEnum, use its value
         if ($code instanceof ThrowableEnum) {
+            $processedCode = $code->value;
             $processedHttpCode = $httpCode ?? $code->httpStatusCode();
         } else {
+            $processedCode = $code ?? $exception->getCode();
             $processedHttpCode = $httpCode ?? $this->getExceptionHttpCode($exception);
         }
         

@@ -35,6 +35,11 @@ class ErrorResponse extends Exception
             $finalHttpCode = $httpCode ?? $enum->httpStatusCode();
         }
 
+        // If code is null, use 0 as default
+        if ($finalCode === null) {
+            $finalCode = 0;
+        }
+
         $this->httpCode = $finalHttpCode ?? Response::HTTP_INTERNAL_SERVER_ERROR;
         
         parent::__construct($finalMessage, $finalCode, $previous);
