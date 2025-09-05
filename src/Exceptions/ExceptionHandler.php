@@ -139,8 +139,14 @@ class ExceptionHandler extends Handler
             $processedCode = $code->value;
             $processedHttpCode = $httpCode ?? $code->httpStatusCode();
         } else {
-            $processedCode = $code ?? $exception->getCode();
-            $processedHttpCode = $httpCode ?? $this->getExceptionHttpCode($exception);
+            // For ErrorResponse, use its internal values
+            if ($exception instanceof ErrorResponse) {
+                $processedCode = $exception->getCode();
+                $processedHttpCode = $httpCode ?? $exception->getHttpCode();
+            } else {
+                $processedCode = $code ?? $exception->getCode();
+                $processedHttpCode = $httpCode ?? $this->getExceptionHttpCode($exception);
+            }
         }
         
         $processedMessage = $exception->getMessage();
