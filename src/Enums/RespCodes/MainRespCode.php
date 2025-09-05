@@ -35,7 +35,6 @@ enum MainRespCode: int implements ThrowableEnum
     case TooManyRequests = 429;
     case RateLimitExceeded = 430;
 
-
     public function httpStatusCode(): int
     {
         return match ($this) {
@@ -50,8 +49,7 @@ enum MainRespCode: int implements ThrowableEnum
             self::Unauthorized => Response::HTTP_UNAUTHORIZED,
             self::Forbidden => Response::HTTP_FORBIDDEN,
             self::NotFound => Response::HTTP_NOT_FOUND,
-            self::TooManyRequests => Response::HTTP_TOO_MANY_REQUESTS,
-            self::RateLimitExceeded => Response::HTTP_TOO_MANY_REQUESTS,
+            self::TooManyRequests, self::RateLimitExceeded => Response::HTTP_TOO_MANY_REQUESTS,
         };
     }
 }

@@ -11,7 +11,7 @@ class MakeErrorRespCodeCommand extends Command
     protected $signature = 'make:resp-code {name? : The name of the error response code enum}';
     protected $description = 'Create a new error response code enum';
 
-    public function handle()
+    public function handle(): int
     {
         $name = $this->getEnumName();
         
@@ -209,7 +209,7 @@ class MakeErrorRespCodeCommand extends Command
     {
         // Default locales
         $defaultLocales = ['en', 'uz', 'ru'];
-        
+
         // Check if Laravel has configured locales
         if (function_exists('config') && config('app.locale')) {
             $appLocale = config('app.locale');
