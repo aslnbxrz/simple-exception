@@ -4,11 +4,12 @@ namespace {{Namespace}};
 
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
 use Aslnbxrz\SimpleException\Traits\HasRespCodeTranslation;
+use Aslnbxrz\SimpleException\Traits\HasStatusCode;
 use Symfony\Component\HttpFoundation\Response;
 
 enum {{ClassName}}: int implements ThrowableEnum
 {
-    use HasRespCodeTranslation;
+    use HasRespCodeTranslation, HasStatusCode;
     
     // Add your error codes here
     case UnknownError = 2001;
