@@ -4,7 +4,7 @@
   "type": "library",
   "keywords": ["laravel", "exception", "error-handling", "api", "response"],
   "license": "MIT",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "authors": [
     {
       "name": "aslnbxrz",
@@ -36,6 +36,11 @@
       "src/helpers/helpers.php"
     ]
   },
+  "files": [
+    "lang/main/en.php",
+    "lang/main/uz.php",
+    "lang/main/ru.php"
+  ],
   "autoload-dev": {
     "psr-4": {
       "Aslnbxrz\\SimpleException\\Tests\\": "tests/"
