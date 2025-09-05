@@ -45,7 +45,7 @@ class EnumTranslationSyncTest extends TestCase
         $method->setAccessible(true);
 
         $this->assertEquals('user', $method->invoke($this->syncService, 'App\\Enums\\UserRespCode'));
-        $this->assertEquals('main', $method->invoke($this->syncService, 'Aslnbxrz\\SimpleException\\Enums\\MainRespCode'));
+        $this->assertEquals('main', $method->invoke($this->syncService, 'Aslnbxrz\\SimpleException\\Enums\\RespCodes\\MainRespCode'));
         $this->assertEquals('test_enum', $method->invoke($this->syncService, 'TestEnum'));
     }
 

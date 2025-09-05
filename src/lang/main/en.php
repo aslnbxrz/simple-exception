@@ -15,7 +15,6 @@ return [
     // Server errors
     'internal_server_error' => 'An internal server error occurred. Please try again later.',
     'bad_gateway' => 'Bad gateway. Please try again later.',
-    'service_unavailable' => 'Service is temporarily unavailable. Please try again later.',
     'gateway_timeout' => 'Gateway timeout. Please try again later.',
     
     // Authentication errors

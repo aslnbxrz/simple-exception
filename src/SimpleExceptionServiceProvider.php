@@ -43,6 +43,10 @@ class SimpleExceptionServiceProvider extends ServiceProvider
                 __DIR__.'/lang' => $this->app->langPath('vendor/simple-exception'),
             ], 'simple-exception-lang');
 
+            $this->publishes([
+                __DIR__.'/Enums/RespCodes' => app_path('Enums/RespCodes'),
+            ], 'simple-exception-enums');
+
             // Register Artisan commands
             $this->commands([
                 MakeErrorRespCodeCommand::class,

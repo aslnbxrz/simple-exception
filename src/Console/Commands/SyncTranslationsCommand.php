@@ -8,8 +8,8 @@ use Illuminate\Filesystem\Filesystem;
 
 class SyncTranslationsCommand extends Command
 {
-    protected $signature = 'sync:enum-translations 
-                            {enum? : The enum class name (e.g., UserRespCode or App\\Enums\\UserRespCode). If not provided, syncs all enums.}
+    protected $signature = 'sync:resp-translations 
+                            {enum? : The enum class name (e.g., UserRespCode or App\\Enums\\RespCodes\\UserRespCode). If not provided, syncs all enums.}
                             {--locale=en : Target locale}
                             {--file= : Custom file name (default: snake case of enum name)}
                             {--use-messages : Use enum message() method for default text}

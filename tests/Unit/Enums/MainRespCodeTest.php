@@ -2,7 +2,7 @@
 
 namespace Aslnbxrz\SimpleException\Tests\Unit\Enums;
 
-use Aslnbxrz\SimpleException\Enums\MainRespCode;
+use Aslnbxrz\SimpleException\Enums\RespCodes\MainRespCode;
 use Aslnbxrz\SimpleException\Tests\TestCase;
 use Symfony\Component\HttpFoundation\Response;
 

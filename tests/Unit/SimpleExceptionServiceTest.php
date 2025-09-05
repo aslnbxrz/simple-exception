@@ -2,7 +2,7 @@
 
 namespace Aslnbxrz\SimpleException\Tests\Unit;
 
-use Aslnbxrz\SimpleException\Enums\MainRespCode;
+use Aslnbxrz\SimpleException\Enums\RespCodes\MainRespCode;
 use Aslnbxrz\SimpleException\Exceptions\ErrorResponse;
 use Aslnbxrz\SimpleException\SimpleExceptionService;
 use Aslnbxrz\SimpleException\Tests\TestCase;

@@ -15,7 +15,6 @@ return [
     // Server errors
     'internal_server_error' => 'Произошла внутренняя ошибка сервера. Попробуйте позже.',
     'bad_gateway' => 'Плохой шлюз. Попробуйте позже.',
-    'service_unavailable' => 'Сервис временно недоступен. Попробуйте позже.',
     'gateway_timeout' => 'Тайм-аут шлюза. Попробуйте позже.',
     
     // Authentication errors

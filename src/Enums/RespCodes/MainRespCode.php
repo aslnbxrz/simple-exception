@@ -1,6 +1,6 @@
 <?php
 
-namespace Aslnbxrz\SimpleException\Enums;
+namespace Aslnbxrz\SimpleException\Enums\RespCodes;
 
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
 use Illuminate\Support\Str;
