@@ -78,22 +78,29 @@ class SyncTranslationsCommand extends Command
         }
         $this->line("");
 
+        // Get all available locales
+        $locales = $this->getAvailableLocales();
+        $this->info("🌍 Available locales: " . implode(', ', $locales));
+        $this->line("");
+
         $successCount = 0;
         $errorCount = 0;
         $results = [];
 
         foreach ($availableEnums as $enumClass) {
-            try {
-                $this->line("🔄 Syncing {$enumClass}...");
-                
-                $result = $this->syncService->sync($enumClass, $locale, null, $useMessages);
-                $results[] = $result;
-                $successCount++;
-                
-                $this->line("   ✅ {$result['file_name']}.php created/updated");
-            } catch (\Exception $e) {
-                $this->error("   ❌ Error syncing {$enumClass}: " . $e->getMessage());
-                $errorCount++;
+            $this->line("🔄 Syncing {$enumClass}...");
+            
+            foreach ($locales as $currentLocale) {
+                try {
+                    $result = $this->syncService->sync($enumClass, $currentLocale, null, $useMessages);
+                    $results[] = $result;
+                    $successCount++;
+                    
+                    $this->line("   ✅ {$result['file_name']}/{$currentLocale}.php created/updated");
+                } catch (\Exception $e) {
+                    $this->error("   ❌ Error syncing {$enumClass} for {$currentLocale}: " . $e->getMessage());
+                    $errorCount++;
+                }
             }
         }
 
@@ -101,6 +108,34 @@ class SyncTranslationsCommand extends Command
         $this->displaySummaryResults($successCount, $errorCount, $results);
 
         return $errorCount > 0 ? 1 : 0;
+    }
+
+    /**
+     * Get available locales
+     */
+    protected function getAvailableLocales(): array
+    {
+        // Default locales
+        $defaultLocales = ['en', 'uz', 'ru'];
+        
+        // Check if Laravel has configured locales
+        if (function_exists('config') && config('app.locale')) {
+            $appLocale = config('app.locale');
+            $fallbackLocale = config('app.fallback_locale', 'en');
+            
+            $locales = array_unique([$appLocale, $fallbackLocale]);
+            
+            // Add default locales if not already present
+            foreach ($defaultLocales as $locale) {
+                if (!in_array($locale, $locales)) {
+                    $locales[] = $locale;
+                }
+            }
+            
+            return $locales;
+        }
+        
+        return $defaultLocales;
     }
 
     /**

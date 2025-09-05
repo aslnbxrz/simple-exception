@@ -155,43 +155,103 @@ class MakeErrorRespCodeCommand extends Command
     {
         $lowerClassName = strtolower($className);
         $langDir = lang_path("vendor/simple-exception/{$lowerClassName}");
-        
+
         // Create lang directory if it doesn't exist
         if (!File::exists($langDir)) {
             File::makeDirectory($langDir, 0755, true, true);
         }
 
-        $langFile = $langDir . '/en.php';
-        
-        // Don't overwrite existing lang file
-        if (File::exists($langFile)) {
-            $this->line("📝 Language file already exists: {$langFile}");
-            return;
+        // Get available locales
+        $locales = $this->getAvailableLocales();
+        $createdFiles = [];
+
+        foreach ($locales as $locale) {
+            $langFile = $langDir . "/{$locale}.php";
+
+            // Don't overwrite existing lang file
+            if (File::exists($langFile)) {
+                $this->line("📝 Language file already exists: {$langFile}");
+                continue;
+            }
+
+            $langContent = $this->generateLangContent($className, $locale);
+            File::put($langFile, $langContent);
+            $createdFiles[] = $langFile;
         }
 
-        $langContent = $this->generateLangContent($className);
-        File::put($langFile, $langContent);
+        if (!empty($createdFiles)) {
+            $this->line("📝 Language files created:");
+            foreach ($createdFiles as $file) {
+                $this->line("   • {$file}");
+            }
+        }
+    }
+
+    /**
+     * Get available locales
+     */
+    protected function getAvailableLocales(): array
+    {
+        // Default locales
+        $defaultLocales = ['en', 'uz', 'ru'];
         
-        $this->line("📝 Language file created: {$langFile}");
+        // Check if Laravel has configured locales
+        if (function_exists('config') && config('app.locale')) {
+            $appLocale = config('app.locale');
+            $fallbackLocale = config('app.fallback_locale', 'en');
+            
+            $locales = array_unique([$appLocale, $fallbackLocale]);
+            
+            // Add default locales if not already present
+            foreach ($defaultLocales as $locale) {
+                if (!in_array($locale, $locales)) {
+                    $locales[] = $locale;
+                }
+            }
+            
+            return $locales;
+        }
+        
+        return $defaultLocales;
     }
 
     /**
      * Generate language file content
      */
-    private function generateLangContent(string $className): string
+    private function generateLangContent(string $className, string $locale = 'en'): string
     {
         $lowerClassName = strtolower($className);
-        
-        return "<?php
 
-return [
-    'unknown_error' => 'An unknown error occurred',
-    
-    // Add more translations as needed:
-    // 'not_found' => 'Resource not found',
-    // 'validation_error' => 'Validation failed',
-    // 'access_denied' => 'Access denied',
-];
-";
+        // Different messages for different locales
+        $messages = match ($locale) {
+            'uz' => [
+                'unknown_error' => 'Noma\'lum xatolik yuz berdi',
+                'not_found' => 'Resurs topilmadi',
+                'validation_error' => 'Ma\'lumotlar noto\'g\'ri',
+                'access_denied' => 'Kirish rad etildi',
+            ],
+            'ru' => [
+                'unknown_error' => 'Произошла неизвестная ошибка',
+                'not_found' => 'Ресурс не найден',
+                'validation_error' => 'Данные неверны',
+                'access_denied' => 'Доступ запрещен',
+            ],
+            default => [
+                'unknown_error' => 'An unknown error occurred',
+                'not_found' => 'Resource not found',
+                'validation_error' => 'Validation failed',
+                'access_denied' => 'Access denied',
+            ],
+        };
+
+        $content = "<?php\n\nreturn [\n";
+        $content .= "    'unknown_error' => '{$messages['unknown_error']}',\n\n";
+        $content .= "    // Add more translations as needed:\n";
+        $content .= "    // 'not_found' => '{$messages['not_found']}',\n";
+        $content .= "    // 'validation_error' => '{$messages['validation_error']}',\n";
+        $content .= "    // 'access_denied' => '{$messages['access_denied']}',\n";
+        $content .= "];\n";
+
+        return $content;
     }
 }

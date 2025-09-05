@@ -187,13 +187,19 @@ class EnumTranslationSync
     {
         $enums = [];
         
-        // Get all classes from app/Enums directory
-        $enumPath = app_path('Enums');
+        // Get enum directory from config
+        $respCodesDir = Config::get('simple-exception.enum_generation.resp_codes_dir', 'Enums');
+        $enumPath = app_path($respCodesDir);
+        
         if ($this->files->exists($enumPath)) {
             $files = $this->files->glob($enumPath . '/*.php');
             
             foreach ($files as $file) {
-                $className = 'App\\Enums\\' . pathinfo($file, PATHINFO_FILENAME);
+                $filename = pathinfo($file, PATHINFO_FILENAME);
+                
+                // Generate namespace from directory path
+                $namespace = $this->generateNamespaceFromPath($respCodesDir);
+                $className = $namespace . '\\' . $filename;
                 
                 if (enum_exists($className) && is_subclass_of($className, ThrowableEnum::class)) {
                     $enums[] = $className;
@@ -202,5 +208,16 @@ class EnumTranslationSync
         }
         
         return $enums;
+    }
+
+    /**
+     * Generate namespace from directory path
+     */
+    protected function generateNamespaceFromPath(string $respCodesDir): string
+    {
+        // Convert directory path to namespace
+        $dirParts = explode('/', trim($respCodesDir, '/'));
+        $namespace = 'App\\' . implode('\\', array_map('ucfirst', $dirParts));
+        return $namespace;
     }
 }
