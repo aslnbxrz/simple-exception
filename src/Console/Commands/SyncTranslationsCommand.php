@@ -56,6 +56,10 @@ class SyncTranslationsCommand extends Command
     {
         // If it's just a class name without namespace, assume it's in App\Enums
         if (!str_contains($enumClass, '\\')) {
+            // Add RespCode suffix if not present
+            if (!preg_match('/RespCode$/i', $enumClass)) {
+                $enumClass .= 'RespCode';
+            }
             return "App\\Enums\\{$enumClass}";
         }
 

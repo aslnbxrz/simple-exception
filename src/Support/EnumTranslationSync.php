@@ -4,6 +4,7 @@ namespace Aslnbxrz\SimpleException\Support;
 
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Str;
 use ReflectionEnum;
 use ReflectionEnumBackedCase;
@@ -62,6 +63,10 @@ class EnumTranslationSync
     protected function generateFileName(string $enumClass): string
     {
         $className = class_basename($enumClass);
+        
+        // Remove RespCode suffix if present
+        $className = preg_replace('/RespCode$/i', '', $className);
+        
         return Str::snake($className);
     }
 
@@ -70,7 +75,8 @@ class EnumTranslationSync
      */
     protected function getTranslationFilePath(string $fileName, string $locale): string
     {
-        $langDir = lang_path("{$locale}");
+        $basePath = Config::get('simple-exception.translations.base_path', 'vendor/simple-exception');
+        $langDir = lang_path("{$basePath}");
         
         if (!$this->files->exists($langDir)) {
             $this->files->makeDirectory($langDir, 0755, true, true);

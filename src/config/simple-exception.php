@@ -21,6 +21,15 @@ return [
         'resp_codes_dir' => env('SIMPLE_EXCEPTION_RESP_CODES_DIR', 'Enums'),
     ],
     
+    // Translation configuration
+    'translations' => [
+        // Base path for translation files
+        'base_path' => env('SIMPLE_EXCEPTION_TRANSLATIONS_PATH', 'vendor/simple-exception'),
+        
+        // Structure: {base_path}/{enum_name}/{locale}/{enum_name}.php
+        // Example: vendor/simple-exception/user/en/user.php
+    ],
+    
     // Performance optimizations
     'performance' => [
         // Cache error messages for better performance

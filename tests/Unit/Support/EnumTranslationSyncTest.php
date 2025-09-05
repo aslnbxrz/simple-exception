@@ -5,6 +5,7 @@ namespace Aslnbxrz\SimpleException\Tests\Unit\Support;
 use Aslnbxrz\SimpleException\Support\EnumTranslationSync;
 use Aslnbxrz\SimpleException\Tests\TestCase;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Config;
 
 class EnumTranslationSyncTest extends TestCase
 {
@@ -22,8 +23,8 @@ class EnumTranslationSyncTest extends TestCase
     {
         // Clean up test files
         $testFiles = [
-            lang_path('en/test_enum.php'),
-            lang_path('uz/test_enum.php'),
+            lang_path('vendor/simple-exception/test_enum.php'),
+            lang_path('vendor/simple-exception/user.php'),
         ];
 
         foreach ($testFiles as $file) {
@@ -41,7 +42,7 @@ class EnumTranslationSyncTest extends TestCase
         $method = $reflection->getMethod('generateFileName');
         $method->setAccessible(true);
 
-        $this->assertEquals('user_resp_code', $method->invoke($this->syncService, 'App\\Enums\\UserRespCode'));
+        $this->assertEquals('user', $method->invoke($this->syncService, 'App\\Enums\\UserRespCode'));
         $this->assertEquals('test_enum', $method->invoke($this->syncService, 'TestEnum'));
     }
 
@@ -52,7 +53,7 @@ class EnumTranslationSyncTest extends TestCase
         $method->setAccessible(true);
 
         $path = $method->invoke($this->syncService, 'test_enum', 'en');
-        $expectedPath = lang_path('en/test_enum.php');
+        $expectedPath = lang_path('vendor/simple-exception/test_enum.php');
         
         $this->assertEquals($expectedPath, $path);
     }
