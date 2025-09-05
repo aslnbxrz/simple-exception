@@ -15,7 +15,7 @@ if (!function_exists('error_response')) {
 
         if ($message instanceof ThrowableEnum) {
             $httpCode = $message->httpStatusCode();
-            $code ??= $message->statusCode();
+            $code = $message->statusCode();
             $message = $message->message();
         }
 
@@ -73,7 +73,7 @@ if (!function_exists('error_if')) {
     /**
      * @throws ErrorResponse
      */
-    function error_if($condition, string|ThrowableEnum $message, string|int $code = 0): void
+    function error_if($condition, string|ThrowableEnum $message, string|int|null $code = null): void
     {
         persist_error($condition, $message, $code);
     }
@@ -83,7 +83,7 @@ if (!function_exists('error_unless')) {
     /**
      * @throws ErrorResponse
      */
-    function error_unless($condition, string|ThrowableEnum $message, string|int $code = 0): void
+    function error_unless($condition, string|ThrowableEnum $message, string|int|null $code = null): void
     {
         persist_error(!$condition, $message, $code);
     }
