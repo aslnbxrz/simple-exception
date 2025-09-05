@@ -11,7 +11,7 @@ class ErrorResponse extends Exception
 {
     public function __construct(
         string|ThrowableEnum  $message = '',
-        int|ThrowableEnum     $code = 0,
+        int|ThrowableEnum|null $code = 0,
         ?Throwable            $previous = null,
         ?int                  $httpCode = null
     )

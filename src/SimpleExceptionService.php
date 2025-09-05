@@ -25,14 +25,6 @@ class SimpleExceptionService
      */
     public function error(string|ThrowableEnum $message, string|int|null $code = null, ?Throwable $previous = null): void
     {
-        $httpCode = HttpResponse::HTTP_INTERNAL_SERVER_ERROR;
-
-        if ($message instanceof ThrowableEnum) {
-            $httpCode = $message->httpStatusCode();
-            $code ??= $message->statusCode();
-            $message = $message->message();
-        }
-
         if ($previous === null) {
             $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
             $level1 = $trace[1] ?? $trace[0];
@@ -49,7 +41,8 @@ class SimpleExceptionService
             $previous = new \Exception($prevMsg);
         }
 
-        throw new ErrorResponse($message, $code, $previous, $httpCode);
+        // Let ErrorResponse handle the enum logic
+        throw new ErrorResponse($message, $code, $previous);
     }
 
     public function errorClosure(string|ThrowableEnum $message): \Closure
