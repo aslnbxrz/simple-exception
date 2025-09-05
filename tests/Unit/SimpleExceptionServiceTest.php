@@ -38,6 +38,10 @@ class SimpleExceptionServiceTest extends TestCase
             
             $this->assertEquals(426, $httpCodeValue);
             
+            // Debug: Test errorResponse method
+            $response = $this->service->errorResponse($e);
+            $this->assertEquals(426, $response->getStatusCode());
+            
             throw $e;
         }
     }

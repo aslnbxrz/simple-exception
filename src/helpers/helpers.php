@@ -11,13 +11,12 @@ if (!function_exists('error_response')) {
      */
     function error_response(string|ThrowableEnum $message, string|int|null $code = null, ?Throwable $previous = null)
     {
-        $httpCode = Response::HTTP_INTERNAL_SERVER_ERROR;
-
         if ($message instanceof ThrowableEnum) {
-            $httpCode = $message->httpStatusCode();
-            $code = $message->statusCode();
-            $message = $message->message();
+            // For ThrowableEnum, pass it directly to ErrorResponse
+            throw new ErrorResponse($message, $code, $previous);
         }
+
+        $httpCode = Response::HTTP_INTERNAL_SERVER_ERROR;
 
         if ($previous === null) {
             $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
