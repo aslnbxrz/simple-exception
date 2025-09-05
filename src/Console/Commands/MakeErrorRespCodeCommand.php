@@ -4,6 +4,7 @@ namespace Aslnbxrz\SimpleException\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Config;
 
 class MakeErrorRespCodeCommand extends Command
 {
@@ -21,10 +22,14 @@ class MakeErrorRespCodeCommand extends Command
 
         $className = $this->formatClassName($name);
         
-        // App/Enums papkasini yaratish
-        $enumPath = app_path('Enums');
+        // Get directory from config
+        $respCodesDir = $this->getRespCodesDirectory();
+        $enumPath = app_path($respCodesDir);
+        
+        // Create directory if it doesn't exist
         if (!File::exists($enumPath)) {
             File::makeDirectory($enumPath, 0755, true);
+            $this->info("📁 Created directory: {$enumPath}");
         }
 
         $filePath = $enumPath . '/' . $className . '.php';
@@ -37,15 +42,20 @@ class MakeErrorRespCodeCommand extends Command
         // Stub faylini o'qish
         $stub = File::get(__DIR__ . '/stubs/ErrorRespCode.stub');
         
+        // Get namespace from config
+        $namespace = $this->getEnumNamespace($respCodesDir);
+        
         // Stub'ni replace qilish
         $content = str_replace('{{ClassName}}', $className, $stub);
         $content = str_replace('{{LowerName}}', strtolower($name), $content);
+        $content = str_replace('{{Namespace}}', $namespace, $content);
 
         // Faylni yozish
         File::put($filePath, $content);
 
         $this->info("✅ Error response code enum {$className} created successfully!");
         $this->line("📁 File: {$filePath}");
+        $this->line("📦 Namespace: {$namespace}");
         $this->line("");
         $this->line("🚀 Usage examples:");
         $this->line("   error_if(true, {$className}::ExampleError);");
@@ -53,6 +63,7 @@ class MakeErrorRespCodeCommand extends Command
         $this->line("   error({$className}::ExampleError);");
         $this->line("");
         $this->line("💡 Tip: You can add more cases to the enum as needed!");
+        $this->line("⚙️  Config: Directory set to '{$respCodesDir}' in simple-exception config");
 
         return 0;
     }
@@ -104,5 +115,39 @@ class MakeErrorRespCodeCommand extends Command
         
         // Add RespCode suffix
         return $name . 'RespCode';
+    }
+
+    /**
+     * Get response codes directory from config
+     */
+    private function getRespCodesDirectory(): string
+    {
+        $configDir = Config::get('simple-exception.enum_generation.resp_codes_dir', 'Enums');
+        
+        // If it's a relative path, make it relative to app_path
+        if (!str_starts_with($configDir, '/')) {
+            return $configDir;
+        }
+        
+        // If it's an absolute path, return as is
+        return $configDir;
+    }
+
+    /**
+     * Get enum namespace from config or generate from directory
+     */
+    private function getEnumNamespace(string $respCodesDir): string
+    {
+        $autoNamespace = Config::get('simple-exception.enum_generation.auto_namespace', true);
+        
+        if ($autoNamespace) {
+            // Generate namespace from directory
+            $dirParts = explode('/', trim($respCodesDir, '/'));
+            $namespace = 'App\\' . implode('\\', array_map('ucfirst', $dirParts));
+            return $namespace;
+        }
+        
+        // Use configured namespace
+        return Config::get('simple-exception.enum_generation.namespace', 'App\\Enums');
     }
 }
