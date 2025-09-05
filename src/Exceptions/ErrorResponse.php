@@ -16,22 +16,28 @@ class ErrorResponse extends Exception
         ?int                  $httpCode = null
     )
     {
-        // Handle ThrowableEnum
+        $finalMessage = $message;
+        $finalCode = $code;
+        $finalHttpCode = $httpCode;
+
+        // Handle ThrowableEnum as message
         if ($message instanceof ThrowableEnum) {
             $enum = $message;
-            $message = $enum->message();
-            $code = $enum->statusCode();
-            $httpCode = $httpCode ?? $enum->httpStatusCode();
-        } elseif ($code instanceof ThrowableEnum) {
+            $finalMessage = $enum->message();
+            $finalCode = $enum->statusCode();
+            $finalHttpCode = $httpCode ?? $enum->httpStatusCode();
+        }
+        // Handle ThrowableEnum as code
+        elseif ($code instanceof ThrowableEnum) {
             $enum = $code;
-            $message = $message ?: $enum->message();
-            $code = $enum->statusCode();
-            $httpCode = $httpCode ?? $enum->httpStatusCode();
+            $finalMessage = $message ?: $enum->message();
+            $finalCode = $enum->statusCode();
+            $finalHttpCode = $httpCode ?? $enum->httpStatusCode();
         }
 
-        $this->httpCode = $httpCode ?? Response::HTTP_INTERNAL_SERVER_ERROR;
+        $this->httpCode = $finalHttpCode ?? Response::HTTP_INTERNAL_SERVER_ERROR;
         
-        parent::__construct($message, $code, $previous);
+        parent::__construct($finalMessage, $finalCode, $previous);
     }
 
     private readonly int $httpCode;
