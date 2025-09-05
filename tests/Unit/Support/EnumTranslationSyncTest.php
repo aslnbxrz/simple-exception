@@ -67,8 +67,8 @@ class EnumTranslationSyncTest extends TestCase
         $method = $reflection->getMethod('generateDefaultMessage');
         $method->setAccessible(true);
 
-        $this->assertEquals('User Not Found.', $method->invoke($this->syncService, 'user_not_found'));
-        $this->assertEquals('Invalid Credentials.', $method->invoke($this->syncService, 'invalid_credentials'));
+        $this->assertEquals('User not found error occurred.', $method->invoke($this->syncService, 'user_not_found'));
+        $this->assertEquals('Invalid credentials error occurred.', $method->invoke($this->syncService, 'invalid_credentials'));
     }
 
     public function test_generates_translation_file_content()

@@ -260,11 +260,11 @@ class MakeErrorRespCodeCommand extends Command
         };
 
         $content = "<?php\n\nreturn [\n";
-        $content .= "    'unknown_error' => '{$messages['unknown_error']}',\n\n";
+        $content .= "    'unknown_error' => " . var_export($messages['unknown_error'], true) . ",\n\n";
         $content .= "    // Add more translations as needed:\n";
-        $content .= "    // 'not_found' => '{$messages['not_found']}',\n";
-        $content .= "    // 'validation_error' => '{$messages['validation_error']}',\n";
-        $content .= "    // 'access_denied' => '{$messages['access_denied']}',\n";
+        $content .= "    // 'not_found' => " . var_export($messages['not_found'], true) . ",\n";
+        $content .= "    // 'validation_error' => " . var_export($messages['validation_error'], true) . ",\n";
+        $content .= "    // 'access_denied' => " . var_export($messages['access_denied'], true) . ",\n";
         $content .= "];\n";
 
         return $content;

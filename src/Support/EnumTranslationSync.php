@@ -120,20 +120,8 @@ class EnumTranslationSync
         foreach ($reflection->getCases() as $case) {
             $key = Str::snake($case->getName());
             
-            if ($useMessages && method_exists($enumClass, 'message')) {
-                // Try to get message from enum's message() method
-                $caseInstance = $case->getValue();
-                try {
-                    $message = $caseInstance->message();
-                    $translations[$key] = $message;
-                } catch (\Exception $e) {
-                    // Fallback to generated message
-                    $translations[$key] = $this->generateDefaultMessage($key);
-                }
-            } else {
-                // Generate default message
-                $translations[$key] = $this->generateDefaultMessage($key);
-            }
+            // Always generate default message for new cases
+            $translations[$key] = $this->generateDefaultMessage($key);
         }
 
         return $translations;
@@ -144,7 +132,9 @@ class EnumTranslationSync
      */
     protected function generateDefaultMessage(string $key): string
     {
-        return Str::headline($key) . '.';
+        // Convert snake_case to readable format
+        $readable = str_replace('_', ' ', $key);
+        return ucfirst($readable) . ' error occurred.';
     }
 
     /**
@@ -152,8 +142,13 @@ class EnumTranslationSync
      */
     protected function mergeTranslations(array $existing, array $new): array
     {
-        // Keep existing translations and only add new ones (don't overwrite existing)
-        return array_merge($new, $existing);
+        // Only add new translations, don't overwrite existing ones
+        foreach ($new as $key => $value) {
+            if (!isset($existing[$key])) {
+                $existing[$key] = $value;
+            }
+        }
+        return $existing;
     }
 
     /**

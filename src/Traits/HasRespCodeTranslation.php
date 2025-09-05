@@ -28,7 +28,9 @@ trait HasRespCodeTranslation
             }
         }
 
-        return $this->getDefaultMessage();
+        // Fallback to generated message from case name
+        $caseName = str_replace('_', ' ', strtolower($this->name));
+        return ucfirst($caseName) . ' error occurred.';
     }
 
     /**
@@ -54,9 +56,4 @@ trait HasRespCodeTranslation
         return $className;
     }
 
-    /**
-     * Get the default message for the enum case.
-     * This method should be implemented by each enum.
-     */
-    abstract protected function getDefaultMessage(): string;
 }

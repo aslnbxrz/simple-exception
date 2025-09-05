@@ -4,7 +4,7 @@
   "type": "library",
   "keywords": ["laravel", "exception", "error-handling", "api", "response"],
   "license": "MIT",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "authors": [
     {
       "name": "aslnbxrz",

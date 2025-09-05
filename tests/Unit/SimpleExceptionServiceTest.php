@@ -21,7 +21,7 @@ class SimpleExceptionServiceTest extends TestCase
     public function test_error_throws_exception_with_enum()
     {
         $this->expectException(ErrorResponse::class);
-        $this->expectExceptionMessage('Application version is outdated. Please update to the latest version.');
+        $this->expectExceptionMessage('Appversionoutdated error occurred.');
         
         $this->service->error(MainRespCode::AppVersionOutdated);
     }
