@@ -40,7 +40,12 @@ class ErrorResponse extends Exception
             $finalCode = 0;
         }
 
-        $this->httpCode = $finalHttpCode ?? Response::HTTP_INTERNAL_SERVER_ERROR;
+        // If httpCode is null, use 500 as default
+        if ($finalHttpCode === null) {
+            $finalHttpCode = Response::HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        $this->httpCode = $finalHttpCode;
         
         parent::__construct($finalMessage, $finalCode, $previous);
     }
