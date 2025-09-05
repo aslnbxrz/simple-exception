@@ -186,6 +186,11 @@ class ExceptionHandler extends Handler
      */
     private function getExceptionHttpCode(Throwable $exception): int
     {
+        // Check if it's ErrorResponse with httpCode
+        if ($exception instanceof ErrorResponse) {
+            return $exception->getHttpCode();
+        }
+
         if (method_exists($exception, 'getHttpCode')) {
             return $exception->getHttpCode() ?: $exception->getCode() ?: HttpResponse::HTTP_INTERNAL_SERVER_ERROR;
         }
