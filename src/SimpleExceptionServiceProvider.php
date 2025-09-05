@@ -44,7 +44,7 @@ class SimpleExceptionServiceProvider extends ServiceProvider
             ], 'simple-exception-lang');
 
             $this->publishes([
-                __DIR__.'/Enums/RespCodes' => app_path('Enums/RespCodes'),
+                __DIR__.'/Enums/RespCodes/MainRespCode.stub' => app_path('Enums/RespCodes/MainRespCode.php'),
             ], 'simple-exception-enums');
 
             // Register Artisan commands
