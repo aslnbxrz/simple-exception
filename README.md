@@ -1,14 +1,19 @@
-# Simple Exception - Laravel Package
+# SimpleException – Laravel Package
 
-A comprehensive exception handling package for Laravel with custom error responses, enum-based error codes, and automatic translation management.
+A modern exception handling package for Laravel with **enum-based error codes**, **automatic translation sync**, and **clean JSON API responses**.
+
+---
 
 ## 🚀 Features
 
-- **Enum-based Error Codes**: Create custom error response enums with automatic translation support
-- **Helper Functions**: Use `error_if()`, `error_unless()`, `error()` without try-catch blocks
-- **Automatic Translation Sync**: Sync enum cases with translation files automatically
-- **Configurable**: Customize response structure, error codes, and behavior
-- **Laravel Integration**: Full Laravel service provider and facade support
+- ✅ **Enum-based error codes** (e.g. `MainRespCode`, `UserRespCode`)
+- ✅ **Helper functions**: `error()`, `error_if()`, `error_unless()`, `error_response()`
+- ✅ **Automatic translation sync**: keep enum cases in sync with `lang/` files
+- ✅ **Configurable**: response structure, error keys, caching
+- ✅ **Laravel-ready**: Service provider, config publish, artisan commands
+- ✅ Works with **Laravel 9 → 12+**
+
+---
 
 ## 📦 Installation
 
@@ -16,326 +21,194 @@ A comprehensive exception handling package for Laravel with custom error respons
 composer require aslnbxrz/simple-exception
 ```
 
-## ⚙️ Configuration
-
-Publish the configuration file:
+Publish config:
 
 ```bash
 php artisan vendor:publish --tag=simple-exception-config
 ```
 
+This creates `config/simple-exception.php`.
+
+---
+
+## ⚙️ Configuration
+
+### Example
+
+```php
+'response' => [
+    'template' => 'default',
+
+    'templates' => [
+        'default' => [
+            'success' => ':success',
+            'data'    => ':data',
+            'error'   => [
+                'message' => ':message',
+                'code'    => ':code',
+            ],
+            'meta'    => ':meta',
+        ],
+    ],
+],
+
+'default_error_code' => -1,
+
+'enum_generation' => [
+    'resp_codes_dir' => 'Enums/RespCodes', // relative to app/
+],
+
+'translations' => [
+    'base_path' => 'vendor/simple-exception',
+],
+```
+
+---
+
 ## 🎯 Quick Start
 
-### Step 1: Create Your First Error Response Enum
+### Step 1 – Generate an Enum
 
 ```bash
-php artisan make:error-resp-code User
+php artisan make:resp-code User --cases="NotFound=404,Forbidden=403" --locale=en,uz
 ```
 
-This creates `app/Enums/UserRespCode.php`:
+This creates:
+
+- `app/Enums/RespCodes/UserRespCode.php`
+- `lang/vendor/simple-exception/en/user.php`
+- `lang/vendor/simple-exception/uz/user.php`
+
+---
+
+### Step 2 – Throw Errors
 
 ```php
-<?php
+use App\Enums\RespCodes\UserRespCode;
 
-namespace App\Enums;
+// Always throws SimpleErrorResponse
+error(UserRespCode::NotFound);
 
-use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
-use Symfony\Component\HttpFoundation\Response;
+// Conditional helpers
+error_if(!$user, UserRespCode::NotFound);
+error_unless($user->can('update'), UserRespCode::Forbidden);
 
-enum UserRespCode: int implements ThrowableEnum
-{
-    case UnknownError = 2001;
-
-    public function message(): string
-    {
-        $messages = match ($this) {
-            self::UnknownError => 'An unknown error occurred',
-        };
-
-        if (function_exists('__')) {
-            try {
-                $translationKey = 'userrespcode.' . $this->getTranslationKey();
-                $translated = __($translationKey, [], $messages);
-                return $translated === $translationKey ? $messages : $translated;
-            } catch (\Exception $e) {
-                return $messages;
-            }
-        }
-
-        return $messages;
-    }
-
-    private function getTranslationKey(): string
-    {
-        return $this->camelToSnake($this->name);
-    }
-
-    private function camelToSnake(string $string): string
-    {
-        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $string));
-    }
-
-    public function statusCode(): int
-    {
-        return $this->value;
-    }
-
-    public function httpStatusCode(): int
-    {
-        return match ($this) {
-            self::UnknownError => Response::HTTP_INTERNAL_SERVER_ERROR,
-        };
-    }
-}
+// Custom string error
+error_response('Custom failure', 1001);
 ```
 
-### Step 2: Add More Cases to Your Enum
+---
+
+### Step 3 – Example Controller
 
 ```php
-enum UserRespCode: int implements ThrowableEnum
-{
-    case UnknownError = 2001;
-    case UserNotFound = 2002;        // Add this
-    case InvalidCredentials = 2003;  // Add this
-    case AccessDenied = 2004;        // Add this
-
-    public function message(): string
-    {
-        $messages = match ($this) {
-            self::UnknownError => 'An unknown error occurred',
-            self::UserNotFound => 'User not found',           // Add this
-            self::InvalidCredentials => 'Invalid credentials', // Add this
-            self::AccessDenied => 'Access denied',            // Add this
-        };
-
-        if (function_exists('__')) {
-            try {
-                $translationKey = 'userrespcode.' . $this->getTranslationKey();
-                $translated = __($translationKey, [], $messages);
-                return $translated === $translationKey ? $messages : $translated;
-            } catch (\Exception $e) {
-                return $messages;
-            }
-        }
-
-        return $messages;
-    }
-
-    // ... rest of the methods
-}
-```
-
-### Step 3: Sync Translations
-
-```bash
-php artisan sync:enum-translations UserRespCode
-```
-
-This creates `resources/lang/en/user_resp_code.php`:
-
-```php
-<?php
-
-return [
-    'unknown_error' => 'An unknown error occurred',
-    'user_not_found' => 'User Not Found.',
-    'invalid_credentials' => 'Invalid Credentials.',
-    'access_denied' => 'Access Denied.',
-];
-```
-
-### Step 4: Customize Translations
-
-Edit the translation file:
-
-```php
-// resources/lang/en/user_resp_code.php
-<?php
-
-return [
-    'unknown_error' => 'An unknown error occurred',
-    'user_not_found' => 'User not found',
-    'invalid_credentials' => 'Invalid credentials provided',
-    'access_denied' => 'Access denied to this resource',
-];
-```
-
-### Step 5: Use in Your Controllers
-
-```php
-<?php
-
-namespace App\Http\Controllers;
-
-use App\Enums\UserRespCode;
-use Illuminate\Http\Request;
+use App\Enums\RespCodes\UserRespCode;
 
 class UserController extends Controller
 {
     public function show($id)
     {
         $user = User::find($id);
-        
-        // Use helper functions - no try-catch needed!
-        error_if(!$user, UserRespCode::UserNotFound);
-        
+
+        error_if(!$user, UserRespCode::NotFound);
+
         return response()->json(['user' => $user]);
-    }
-
-    public function login(Request $request)
-    {
-        $credentials = $request->only('email', 'password');
-        
-        if (!Auth::attempt($credentials)) {
-            error(UserRespCode::InvalidCredentials);
-        }
-        
-        return response()->json(['message' => 'Login successful']);
-    }
-
-    public function update(Request $request, $id)
-    {
-        $user = User::find($id);
-        
-        // Check permissions
-        error_unless($user->can('update', $user), UserRespCode::AccessDenied);
-        
-        // Update user...
-        return response()->json(['message' => 'User updated']);
     }
 }
 ```
 
-## 🌍 Multi-Language Support
+---
 
-### Add Uzbek Translations
+## 🌍 Translation Management
+
+### Sync all enums
 
 ```bash
-php artisan sync:enum-translations UserRespCode --locale=uz
+php artisan sync:resp-translations --all
 ```
 
-This creates `resources/lang/uz/user_resp_code.php`:
+### Sync one enum
+
+```bash
+php artisan sync:resp-translations UserRespCode --locale=uz
+```
+
+Output:
+
+```
+📋 Found 1 enum(s).
+🔄 Syncing App\Enums\RespCodes\UserRespCode
+   ✅ lang/vendor/simple-exception/uz/user.php created/updated
+```
+
+### Example Translation File
+
+`lang/vendor/simple-exception/en/user.php`
 
 ```php
 <?php
 
 return [
-    'unknown_error' => 'Noma\'lum xatolik yuz berdi',
-    'user_not_found' => 'Foydalanuvchi topilmadi',
-    'invalid_credentials' => 'Noto\'g\'ri ma\'lumotlar',
-    'access_denied' => 'Ruxsat yo\'q',
+    'not_found'  => 'User not found',
+    'forbidden'  => 'Access denied',
 ];
 ```
 
-### Add Russian Translations
+---
 
-```bash
-php artisan sync:enum-translations UserRespCode --locale=ru
+## 🎨 Response Format
+
+### Success
+```json
+{
+  "success": true,
+  "data": { "id": 1, "name": "Bexruz" },
+  "error": null,
+  "meta": []
+}
 ```
 
-## 🛠️ Advanced Usage
-
-### Custom File Names
-
-```bash
-php artisan sync:enum-translations UserRespCode --file=user_errors
+### Error
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "message": "User not found",
+    "code": 404
+  },
+  "meta": []
+}
 ```
 
-Creates `resources/lang/en/user_errors.php`
-
-### Use Enum Message Method
-
-If your enum has a `message()` method, use it for default translations:
-
-```bash
-php artisan sync:enum-translations UserRespCode --use-messages
+### Error (Debug mode)
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "message": "User not found",
+    "code": 404
+  },
+  "meta": {
+    "file": "/app/Http/Controllers/UserController.php",
+    "line": 15,
+    "trace": [...]
+  }
+}
 ```
 
-### Custom Directory for Enums
-
-Configure in `config/simple-exception.php`:
-
-```php
-'enum_generation' => [
-    'resp_codes_dir' => 'Custom/ErrorCodes', // Default: 'Enums'
-],
-```
-
-Then create enums:
-
-```bash
-php artisan make:error-resp-code User
-# Creates: app/Custom/ErrorCodes/UserRespCode.php
-# Namespace: App\Custom\ErrorCodes
-```
+---
 
 ## 📋 Available Commands
 
 | Command | Description |
 |---------|-------------|
-| `php artisan make:error-resp-code {name}` | Create a new error response enum |
-| `php artisan sync:enum-translations {enum}` | Sync translations for an enum |
+| `php artisan make:resp-code {name}` | Generate a new error enum (with translations) |
+| `php artisan sync:resp-translations {enum?}` | Sync translations for a single enum or all enums |
+| `php artisan vendor:publish --tag=simple-exception-config` | Publish package config |
 
-## 🔧 Configuration Options
-
-### Response Structure
-
-```php
-// config/simple-exception.php
-'response' => [
-    'success_key' => 'success',    // Default: 'success'
-    'data_key' => 'data',          // Default: 'data'
-    'error_key' => 'error',        // Default: 'error'
-    'meta_key' => 'meta',          // Default: 'meta'
-],
-```
-
-### Environment Detection
-
-```php
-'environment' => env('APP_ENV', 'production'),
-'default_error_code' => -1,
-```
-
-## 🎨 Response Format
-
-### Success Response
-```json
-{
-    "success": true,
-    "data": { ... },
-    "error": null
-}
-```
-
-### Error Response
-```json
-{
-    "success": false,
-    "data": null,
-    "error": {
-        "message": "User not found",
-        "code": 2002
-    }
-}
-```
-
-### Error with Meta (Development)
-```json
-{
-    "success": false,
-    "data": null,
-    "error": {
-        "message": "User not found",
-        "code": 2002
-    },
-    "meta": {
-        "file": "/app/Http/Controllers/UserController.php",
-        "line": 15,
-        "trace": [...]
-    }
-}
-```
+---
 
 ## 🧪 Testing
 
@@ -343,42 +216,32 @@ php artisan make:error-resp-code User
 composer test
 ```
 
-## 📝 Changelog
-
-### v1.0.3
-- Added automatic translation sync
-- Added `sync:enum-translations` command
-- Improved enum generation with configurable directories
-- Added multi-language support
-
-### v1.0.2
-- Added configurable enum generation directory
-- Improved translation key generation
-- Added automatic namespace generation
-
-### v1.0.1
-- Initial release
-- Basic enum generation
-- Helper functions
-- Exception handling
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This package is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-
-## 🙏 Credits
-
-- [aslnbxrz](https://github.com/aslnbxrz)
-- [webdeveloperr](https://github.com/webdeveloperr)
+Runs all package unit tests (artisan commands, exception handling, translation sync).
 
 ---
 
-**Made with ❤️ for Laravel developers**
+## 📝 Changelog
+
+- **v1.1.0**
+    - Added `make:resp-code` command with `--cases` and `--locale`
+    - Unified translation folder structure: `lang/vendor/simple-exception/{locale}/{file}.php`
+    - Improved helper functions (`error_if`, `error_unless`, etc.)
+    - Cleaner `SimpleErrorResponse` API: `resolvedHttpCode()`, `resolvedCode()`
+
+- **v1.0.x**
+    - Initial release with enum-based exceptions and helpers
+
+---
+
+## 🤝 Contributing
+
+1. Fork
+2. Create feature branch
+3. Commit changes
+4. Open PR
+
+---
+
+## 📄 License
+
+MIT © [aslnbxrz](https://github.com/aslnbxrz)
