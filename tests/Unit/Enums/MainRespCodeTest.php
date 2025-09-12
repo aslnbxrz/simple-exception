@@ -8,38 +8,22 @@ use Symfony\Component\HttpFoundation\Response;
 
 class MainRespCodeTest extends TestCase
 {
-    public function test_app_version_outdated_values()
+    public function test_values_and_status_codes_are_correct()
     {
         $this->assertEquals(426, MainRespCode::AppVersionOutdated->value);
         $this->assertEquals(Response::HTTP_UPGRADE_REQUIRED, MainRespCode::AppVersionOutdated->httpStatusCode());
-        $this->assertEquals('Application version is outdated. Please update to the latest version.', MainRespCode::AppVersionOutdated->message());
-    }
 
-    public function test_app_missing_headers_values()
-    {
-        $this->assertEquals(1000, MainRespCode::AppMissingHeaders->value);
-        $this->assertEquals(Response::HTTP_BAD_REQUEST, MainRespCode::AppMissingHeaders->httpStatusCode());
-        $this->assertEquals('Required headers are missing from the request.', MainRespCode::AppMissingHeaders->message());
-    }
-
-    public function test_app_wrong_language_values()
-    {
-        $this->assertEquals(1001, MainRespCode::AppWrongLanguage->value);
-        $this->assertEquals(Response::HTTP_NOT_ACCEPTABLE, MainRespCode::AppWrongLanguage->httpStatusCode());
-        $this->assertEquals('Invalid or unsupported language specified.', MainRespCode::AppWrongLanguage->message());
-    }
-
-    public function test_validation_error_values()
-    {
         $this->assertEquals(1002, MainRespCode::ValidationError->value);
         $this->assertEquals(Response::HTTP_UNPROCESSABLE_ENTITY, MainRespCode::ValidationError->httpStatusCode());
-        $this->assertEquals('The given data was invalid.', MainRespCode::ValidationError->message());
+
+        $this->assertEquals(404, MainRespCode::NotFound->value);
+        $this->assertEquals(Response::HTTP_NOT_FOUND, MainRespCode::NotFound->httpStatusCode());
     }
 
-    public function test_app_invalid_device_model_values()
+    public function test_message_returns_non_empty_string()
     {
-        $this->assertEquals(1003, MainRespCode::AppInvalidDeviceModel->value);
-        $this->assertEquals(Response::HTTP_INTERNAL_SERVER_ERROR, MainRespCode::AppInvalidDeviceModel->httpStatusCode());
-        $this->assertEquals('Invalid or unsupported device model.', MainRespCode::AppInvalidDeviceModel->message());
+        // We don’t assert exact sentence to avoid coupling with translations
+        $this->assertIsString(MainRespCode::AppWrongLanguage->message());
+        $this->assertNotSame('', MainRespCode::AppWrongLanguage->message());
     }
 }

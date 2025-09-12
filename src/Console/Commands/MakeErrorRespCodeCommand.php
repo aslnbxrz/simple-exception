@@ -3,246 +3,288 @@
 namespace Aslnbxrz\SimpleException\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\File;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Config;
 
+/**
+ * Generate a new *RespCode enum and seed translation files.
+ *
+ * Examples:
+ *  php artisan make:resp-code Main --cases="NotFound=404,Forbidden=403" --locale=en,uz
+ *  php artisan make:resp-code User   # creates UserRespCode with UnknownError=2001 + translations
+ */
 class MakeErrorRespCodeCommand extends Command
 {
-    protected $signature = 'make:resp-code {name? : The name of the error response code enum}';
-    protected $description = 'Create a new error response code enum';
+    protected $signature = 'make:resp-code 
+        {name? : Base name (e.g. Main => MainRespCode)} 
+        {--cases= : CSV pairs Case=HTTPStatus, e.g. "NotFound=404,Forbidden=403"}
+        {--locale=en : Locale(s) for initial lang files, comma-separated}
+        {--force : Overwrite existing enum/lang files if present}';
+
+    protected $description = 'Create a new error response enum and its translation file(s)';
+
+    public function __construct(private readonly Filesystem $fs)
+    {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
-        $name = $this->getEnumName();
-        
+        $name = $this->argument('name') ?: $this->askName();
         if (!$name) {
-            $this->error('Please provide a name for the error response code enum.');
-            return 1;
+            return self::FAILURE;
         }
 
-        $className = $this->formatClassName($name);
-        
-        // Get directory from config
-        $respCodesDir = $this->getRespCodesDirectory();
-        $enumPath = app_path($respCodesDir);
-        
-        // Create directory if it doesn't exist
-        if (!File::exists($enumPath)) {
-            File::makeDirectory($enumPath, 0755, true);
-            $this->info("📁 Created directory: {$enumPath}");
+        $class = $this->formatClassName($name);                 // FooRespCode
+        $pairs = $this->parseCases((string)$this->option('cases')); // [[CaseName, httpStatus], ...]
+        $locales = $this->normalizeLocales((string)$this->option('locale'));
+        $force = (bool)$this->option('force');
+
+        // 1) Resolve enum directory and namespace from config
+        $relDir = (string)Config::get('simple-exception.enum_generation.resp_codes_dir', 'Enums/RespCodes');
+        $enumDir = app_path(trim($relDir, '/'));
+        $ns = 'App\\' . implode('\\', array_map('ucfirst', array_filter(explode('/', trim($relDir, '/')))));
+        $enumPath = $enumDir . '/' . $class . '.php';
+
+        $this->fs->ensureDirectoryExists($enumDir);
+
+        // 2) Write enum file (respect --force)
+        if ($this->fs->exists($enumPath) && !$force) {
+            $this->warn("Enum already exists: {$enumPath} (use --force to overwrite)");
+        } else {
+            $this->fs->put($enumPath, $this->buildEnumSource($ns, $class, $pairs));
+            $this->info("Enum created: {$enumPath}");
         }
 
-        $filePath = $enumPath . '/' . $className . '.php';
+        // 3) Seed translation files per-locale in: lang/vendor/simple-exception/{file}/{locale}.php
+        $basePath = (string)Config::get('simple-exception.translations.base_path', 'vendor/simple-exception');
+        $fileSnake = $this->toSnake(preg_replace('/RespCode$/', '', $class)); // e.g. MainRespCode -> main
 
-        if (File::exists($filePath)) {
-            $this->error("⚠️ Error response code enum {$className} already exists at {$filePath}!");
-            return 1;
+        foreach ($locales as $locale) {
+            $langDir = lang_path("{$basePath}/{$fileSnake}");
+            $langPath = "{$langDir}/{$locale}.php";
+
+            $this->fs->ensureDirectoryExists($langDir);
+
+            if ($this->fs->exists($langPath) && !$force) {
+                // Merge new keys into existing file (do NOT override existing keys)
+                $existing = (array)include $langPath;
+                $merged = $this->mergeLang($existing, $pairs, $locale);
+                $this->fs->put($langPath, $this->exportLang($merged));
+                $this->line("Lang updated: {$langPath}");
+            } else {
+                // Fresh file (or forced overwrite)
+                $content = $this->initialLang($pairs, $locale);
+                $this->fs->put($langPath, $this->exportLang($content));
+                $this->line(($force ? 'Lang overwritten: ' : 'Lang created: ') . $langPath);
+            }
         }
 
-        // Stub faylini o'qish
-        $stub = File::get(__DIR__ . '/stubs/ErrorRespCode.stub');
-        
-        // Generate namespace from directory
-        $namespace = $this->generateNamespace($respCodesDir);
-        
-        // Stub'ni replace qilish
-        $content = str_replace('{{ClassName}}', $className, $stub);
-        $content = str_replace('{{LowerName}}', strtolower($name), $content);
-        $content = str_replace('{{LowerClassName}}', strtolower($className), $content);
-        $content = str_replace('{{Namespace}}', $namespace, $content);
+        // 4) Some usage hints
+        $this->line('');
+        $this->line('Usage examples:');
+        $this->line("  error_if(true, {$class}::UnknownError);");
+        $this->line("  error_unless(false, {$class}::UnknownError);");
+        $this->line("  error({$class}::UnknownError);");
 
-        // Faylni yozish
-        File::put($filePath, $content);
-
-        // Lang faylini yaratish
-        $this->createLangFile($className, $respCodesDir);
-
-        $this->info("✅ Error response code enum {$className} created successfully!");
-        $this->line("📁 File: {$filePath}");
-        $this->line("📦 Namespace: {$namespace}");
-        $this->line("");
-        $this->line("🚀 Usage examples:");
-        $this->line("   error_if(true, {$className}::UnknownError);");
-        $this->line("   error_unless(false, {$className}::UnknownError);");
-        $this->line("   error({$className}::UnknownError);");
-        $this->line("");
-        $this->line("💡 Tip: You can add more cases to the enum as needed!");
-        $this->line("⚙️  Config: Directory set to '{$respCodesDir}' in simple-exception config");
-
-        return 0;
+        return self::SUCCESS;
     }
 
-    /**
-     * Get enum name from user input
-     */
-    private function getEnumName(): ?string
+    /** Interactive ask for enum base name */
+    private function askName(): ?string
     {
-        $name = $this->argument('name');
-        
-        if ($name) {
-            return $name;
-        }
-
-        // Interactive mode
-        $this->line('Welcome to Error Response Code Generator! 🎉');
-        $this->line('');
-        
+        $this->line('🎯 Enter enum base name (e.g. "Main" → MainRespCode):');
         do {
-            $name = $this->ask('What would you like to name your error response code enum?');
-            
-            if (!$name) {
-                $this->error('Name cannot be empty. Please try again.');
+            $name = trim((string)$this->ask('Name'));
+            if ($name === '') {
+                $this->error('Name cannot be empty.');
+                return null;
+            }
+            if (!preg_match('/^[A-Za-z][A-Za-z0-9]*$/', $name)) {
+                $this->error('Use letters/numbers only, starting with a letter.');
                 continue;
             }
-            
-            if (!preg_match('/^[a-zA-Z][a-zA-Z0-9]*$/', $name)) {
-                $this->error('Name must contain only letters and numbers, and start with a letter.');
-                continue;
-            }
-            
             break;
         } while (true);
 
         return $name;
     }
 
-    /**
-     * Format class name with RespCode suffix
-     */
-    private function formatClassName(string $name): string
+    /** Turn "Foo" into "FooRespCode" (idempotent) */
+    private function formatClassName(string $base): string
     {
-        // Remove RespCode if already present
-        $name = preg_replace('/RespCode$/i', '', $name);
-        
-        // Capitalize first letter
-        $name = ucfirst($name);
-        
-        // Add RespCode suffix
-        return $name . 'RespCode';
+        $base = preg_replace('/RespCode$/i', '', $base);
+        return ucfirst($base) . 'RespCode';
     }
 
-    /**
-     * Get response codes directory from config
-     */
-    private function getRespCodesDirectory(): string
+    /** Parse CSV "Case=Status" into array of [case, status] */
+    private function parseCases(string $csv): array
     {
-        $configDir = Config::get('simple-exception.enum_generation.resp_codes_dir', 'Enums');
-        
-        // If it's a relative path, make it relative to app_path
-        if (!str_starts_with($configDir, '/')) {
-            return $configDir;
+        $out = [];
+        foreach (array_filter(array_map('trim', explode(',', $csv))) as $pair) {
+            if (!str_contains($pair, '=')) continue;
+            [$name, $val] = array_map('trim', explode('=', $pair, 2));
+            if ($name === '' || $val === '' || !is_numeric($val)) continue;
+            $out[] = [$name, (int)$val];
         }
-        
-        // If it's an absolute path, return as is
-        return $configDir;
+        return $out;
+    }
+
+    /** Minimal HTTP status -> Symfony Response constant mapping */
+    private function httpConst(int $status): string
+    {
+        return match ($status) {
+            400 => 'BAD_REQUEST',
+            401 => 'UNAUTHORIZED',
+            403 => 'FORBIDDEN',
+            404 => 'NOT_FOUND',
+            405 => 'METHOD_NOT_ALLOWED',
+            406 => 'NOT_ACCEPTABLE',
+            409 => 'CONFLICT',
+            410 => 'GONE',
+            412 => 'PRECONDITION_FAILED',
+            413 => 'PAYLOAD_TOO_LARGE',
+            415 => 'UNSUPPORTED_MEDIA_TYPE',
+            422 => 'UNPROCESSABLE_ENTITY',
+            426 => 'UPGRADE_REQUIRED',
+            429 => 'TOO_MANY_REQUESTS',
+            500 => 'INTERNAL_SERVER_ERROR',
+            502 => 'BAD_GATEWAY',
+            503 => 'SERVICE_UNAVAILABLE',
+            504 => 'GATEWAY_TIMEOUT',
+            default => 'INTERNAL_SERVER_ERROR',
+        };
+    }
+
+    /** Generate enum source code */
+    private function buildEnumSource(string $ns, string $class, array $pairs): string
+    {
+        $casesBlock = empty($pairs)
+            ? "    case UnknownError = 2001;\n"
+            : implode("", array_map(fn($p) => "    case {$p[0]} = {$p[1]};\n", $pairs));
+
+        $matches = empty($pairs)
+            ? "            self::UnknownError => Response::HTTP_INTERNAL_SERVER_ERROR,"
+            : implode("\n", array_map(function ($p) {
+                [$name, $val] = $p;
+                $http = $this->httpConst($val);
+                return "            self::{$name} => Response::HTTP_{$http},";
+            }, $pairs));
+
+        return <<<PHP
+<?php
+
+namespace {$ns};
+
+use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
+use Aslnbxrz\SimpleException\Traits\HasRespCodeTranslation;
+use Aslnbxrz\SimpleException\Traits\HasStatusCode;
+use Symfony\Component\HttpFoundation\Response;
+
+enum {$class}: int implements ThrowableEnum
+{
+    use HasRespCodeTranslation, HasStatusCode;
+
+{$casesBlock}
+    public function httpStatusCode(): int
+    {
+        return match (\$this) {
+{$matches}
+            default => Response::HTTP_INTERNAL_SERVER_ERROR,
+        };
+    }
+}
+PHP;
+    }
+
+    /** Normalize comma-separated locales */
+    private function normalizeLocales(string $csv): array
+    {
+        $arr = array_values(array_unique(array_filter(array_map(
+            fn($s) => strtolower(trim($s)), explode(',', $csv)
+        ))));
+        return $arr ?: ['en'];
+    }
+
+    /** CamelCase → snake_case */
+    private function toSnake(string $s): string
+    {
+        $s = preg_replace('/(?<!^)[A-Z]/', '_$0', $s);
+        $s = strtolower($s);
+        return str_replace('__', '_', $s);
+    }
+
+    /** Default human-readable message for a snake key in a given locale */
+    private function defaultMessage(string $snakeKey, string $locale): string
+    {
+        $readable = ucfirst(str_replace('_', ' ', $snakeKey));
+        return match ($locale) {
+            'uz' => "{$readable} xatosi yuz berdi.",
+            'ru' => "Произошла ошибка: {$readable}.",
+            default => "{$readable} error occurred.",
+        };
     }
 
     /**
-     * Generate namespace from directory path
+     * Create initial lang array for a given locale:
+     * - If no explicit cases: add "unknown_error"
+     * - Else: add one key per case (snake-cased), with a sensible default message
      */
-    private function generateNamespace(string $respCodesDir): string
+    private function initialLang(array $pairs, string $locale): array
     {
-        // Convert directory path to namespace
-        $dirParts = explode('/', trim($respCodesDir, '/'));
-        $namespace = 'App\\' . implode('\\', array_map('ucfirst', $dirParts));
-        return $namespace;
-    }
-
-    /**
-     * Create language file for the enum
-     */
-    private function createLangFile(string $className, string $respCodesDir): void
-    {
-        // Remove 'RespCode' suffix and convert to snake_case
-        $enumName = $this->getEnumNameFromClassName($className);
-        $langDir = lang_path("vendor/simple-exception/{$enumName}");
-
-        // Create lang directory if it doesn't exist
-        if (!File::exists($langDir)) {
-            File::makeDirectory($langDir, 0755, true, true);
-        }
-
-        // Get available locales
-        $locales = $this->getAvailableLocales();
-        $createdFiles = [];
-
-        foreach ($locales as $locale) {
-            $langFile = $langDir . "/{$locale}.php";
-
-            // Don't overwrite existing lang file
-            if (File::exists($langFile)) {
-                $this->line("📝 Language file already exists: {$langFile}");
-                continue;
+        $lang = [];
+        if (empty($pairs)) {
+            $lang['unknown_error'] = $this->defaultMessage('unknown_error', $locale);
+        } else {
+            foreach ($pairs as [$case, $_]) {
+                $key = $this->toSnake($case);
+                $lang[$key] = $this->defaultMessage($key, $locale);
             }
-
-            $langContent = $this->generateLangContent($className, $locale);
-            File::put($langFile, $langContent);
-            $createdFiles[] = $langFile;
         }
+        return $lang;
+    }
 
-        if (!empty($createdFiles)) {
-            $this->line("📝 Language files created:");
-            foreach ($createdFiles as $file) {
-                $this->line("   • {$file}");
+    /**
+     * Merge new keys into existing lang array without overriding existing values.
+     */
+    private function mergeLang(array $existing, array $pairs, string $locale): array
+    {
+        $add = $this->initialLang($pairs, $locale);
+        foreach ($add as $k => $v) {
+            if (!array_key_exists($k, $existing)) {
+                $existing[$k] = $v;
             }
         }
+        return $existing;
     }
 
     /**
-     * Get enum name from class name (remove RespCode suffix)
+     * Export lang array as valid PHP.
+     * We intentionally use var_export() to guarantee correct PHP syntax:
+     *
+     *   <?php
+     *
+     *   return array (
+     *     'key' => 'value',
+     *   );
      */
-    private function getEnumNameFromClassName(string $className): string
+    private function exportLang(array $translations): string
     {
-        // Remove 'RespCode' suffix if present
-        if (str_ends_with($className, 'RespCode')) {
-            $className = substr($className, 0, -8); // Remove 'RespCode' (8 characters)
-        }
-        
-        // Convert to snake_case
-        return strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', $className));
+        return "<?php\n\nreturn " . var_export($translations, true) . ";\n";
     }
 
     /**
-     * Get available locales
-     */
-    protected function getAvailableLocales(): array
-    {
-        // Default locales
-        $defaultLocales = ['en', 'uz', 'ru'];
-
-        // Check if Laravel has configured locales
-        if (function_exists('config') && config('app.locale')) {
-            $appLocale = config('app.locale');
-            $fallbackLocale = config('app.fallback_locale', 'en');
-            
-            $locales = array_unique([$appLocale, $fallbackLocale]);
-            
-            // Add default locales if not already present
-            foreach ($defaultLocales as $locale) {
-                if (!in_array($locale, $locales)) {
-                    $locales[] = $locale;
-                }
-            }
-            
-            return $locales;
-        }
-        
-        return $defaultLocales;
-    }
-
-    /**
-     * Generate language file content
+     * (Optional) Generate a minimal example content block.
+     * Not used by default (we build content from parsed cases), but kept
+     * as a stub generator if you want to seed a richer template.
      */
     private function generateLangContent(string $className, string $locale = 'en'): string
     {
-        $enumName = $this->getEnumNameFromClassName($className);
-
-        // Different messages for different locales
         $messages = match ($locale) {
             'uz' => [
-                'unknown_error' => 'Noma\'lum xatolik yuz berdi',
+                'unknown_error' => "Noma'lum xatolik yuz berdi",
                 'not_found' => 'Resurs topilmadi',
-                'validation_error' => 'Ma\'lumotlar noto\'g\'ri',
+                'validation_error' => "Ma\'lumotlar noto\'g\'ri",
                 'access_denied' => 'Kirish rad etildi',
             ],
             'ru' => [
@@ -259,14 +301,12 @@ class MakeErrorRespCodeCommand extends Command
             ],
         };
 
-        $content = "<?php\n\nreturn [\n";
-        $content .= "    'unknown_error' => " . var_export($messages['unknown_error'], true) . ",\n\n";
-        $content .= "    // Add more translations as needed:\n";
-        $content .= "    // 'not_found' => " . var_export($messages['not_found'], true) . ",\n";
-        $content .= "    // 'validation_error' => " . var_export($messages['validation_error'], true) . ",\n";
-        $content .= "    // 'access_denied' => " . var_export($messages['access_denied'], true) . ",\n";
-        $content .= "];\n";
+        // If you ever prefer a fixed stub instead of var_export(),
+        // you can return this content. Currently unused.
+        $content = [
+            'unknown_error' => $messages['unknown_error'],
+        ];
 
-        return $content;
+        return "<?php\n\nreturn " . var_export($content, true) . ";\n";
     }
 }

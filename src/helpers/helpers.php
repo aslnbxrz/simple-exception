@@ -1,134 +1,69 @@
 <?php
 
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
-use Aslnbxrz\SimpleException\Exceptions\ErrorResponse;
-use Illuminate\Support\Facades\Config;
-use Symfony\Component\HttpFoundation\Response;
+use Aslnbxrz\SimpleException\Exceptions\SimpleErrorResponse;
 
-if (!function_exists('error_response')) {
-    /**
-     * @throws ErrorResponse
-     */
-    function error_response(string|ThrowableEnum $message, string|int|null $code = null, ?Throwable $previous = null)
-    {
-        if ($message instanceof ThrowableEnum) {
-            // For ThrowableEnum, pass it directly to ErrorResponse with httpCode
-            $httpCode = $message->httpStatusCode();
-            throw new ErrorResponse($message, $code, $previous, $httpCode);
-        }
+/**
+ * Exception maker from Enum or string
+ *
+ * @throws SimpleErrorResponse
+ */
 
-        $httpCode = Response::HTTP_INTERNAL_SERVER_ERROR;
+function error_response(string|ThrowableEnum $message, string|int|null $code = null, ?Throwable $previous = null): never
+{
+    if ($previous === null && (config('app.debug') ?? false)) {
+        $t = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+        $site = $t[1] ?? $t[0] ?? null;
+        $hint = $site
+            ? sprintf('Error at %s:%s', $site['file'] ?? 'unknown', $site['line'] ?? 0)
+            : 'Error site unknown';
+        $previous = new RuntimeException($hint);
+    }
 
-        if ($previous === null) {
-            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
-            $level1 = $trace[1] ?? $trace[0];
-            $level0 = $trace[0];
+    $http = $message instanceof ThrowableEnum ? $message->httpStatusCode() : null;
 
-            $prevMsg = sprintf(
-                "Error in %s on line %s\nError in %s on line %s",
-                $level1['file'] ?? 'unknown',
-                $level1['line'] ?? '0',
-                $level0['file'] ?? 'unknown',
-                $level0['line'] ?? '0'
-            );
+    throw new SimpleErrorResponse($message, $code, $previous, $http);
+}
 
-            $previous = new Exception($prevMsg);
-        }
+/**
+ * Lazy variant: closure returns error_response
+ */
+function error(string|ThrowableEnum $message): Closure
+{
+    return static fn() => error_response($message);
+}
 
-        throw new ErrorResponse($message, $code, $previous, $httpCode);
+/**
+ * If condition is true, throws SimpleErrorResponse
+ *
+ * @throws SimpleErrorResponse
+ */
+function error_if(mixed $condition, string|ThrowableEnum $message, string|int|null $code = null): void
+{
+    $ok = is_callable($condition) ? (bool)$condition() : (bool)$condition;
+    if ($ok) {
+        error_response($message, $code);
     }
 }
 
-if (!function_exists('error')) {
-    function error(string|ThrowableEnum $message): Closure
-    {
-        return fn() => error_response($message);
-    }
+/**
+ * If condition is false, throws SimpleErrorResponse
+ *
+ * @throws SimpleErrorResponse
+ */
+function error_unless(mixed $condition, string|ThrowableEnum $message, string|int|null $code = null): void
+{
+    error_if(!$condition, $message, $code);
 }
 
-if (!function_exists('persist_error')) {
-    /**
-     * @throws ErrorResponse
-     */
-    function persist_error($condition, string|ThrowableEnum $message, string|int|null $code): void
-    {
-        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
-        $caller = $trace[1] ?? $trace[0];
-        $previous = new Exception(sprintf(
-            'Error in %s on line %d',
-            $caller['file'] ?? 'unknown',
-            $caller['line'] ?? 0
-        ));
-
-        $evaluated = is_callable($condition) ? $condition() : $condition;
-        $evaluated = (bool)$evaluated;
-
-        if ($evaluated) {
-            error_response($message, $code, $previous);
-        }
-    }
+/** Returns true if app is in production */
+function is_prod(): bool
+{
+    $env = config('app.env') ?? ($_ENV['APP_ENV'] ?? 'production');
+    return $env === 'production';
 }
 
-if (!function_exists('error_if')) {
-    /**
-     * @throws ErrorResponse
-     */
-    function error_if($condition, string|ThrowableEnum $message, string|int|null $code = null): void
-    {
-        persist_error($condition, $message, $code);
-    }
-}
-
-if (!function_exists('error_unless')) {
-    /**
-     * @throws ErrorResponse
-     */
-    function error_unless($condition, string|ThrowableEnum $message, string|int|null $code = null): void
-    {
-        persist_error(!$condition, $message, $code);
-    }
-}
-
-if (!function_exists('is_dev')) {
-    function is_dev(): bool
-    {
-        return !is_prod();
-    }
-}
-
-if (!function_exists('is_prod')) {
-    function is_prod(): bool
-    {
-        // Try to get from Laravel config if available
-        if (class_exists(Config::class)) {
-            try {
-                $value = Config::get('simple-exception.environment');
-                return $value === 'production';
-            } catch (\Exception $e) {
-                // Fallback to environment variable
-            }
-        }
-        
-        // Fallback to environment variable
-        return ($_ENV['APP_ENV'] ?? 'production') === 'production';
-    }
-}
-
-if (!function_exists('getLastFiveTraceEntries')) {
-    function getLastFiveTraceEntries(Throwable $exception): string
-    {
-        $traceArray = $exception->getTrace();
-        $lastFiveTraces = array_slice($traceArray, 0, 5);
-        $traceString = '';
-
-        foreach ($lastFiveTraces as $index => $trace) {
-            $traceString .= "#{$index} " .
-                ($trace['file'] ?? '[internal function]') .
-                ':' . ($trace['line'] ?? 'N/A') . ' - ' .
-                (isset($trace['class']) ? $trace['class'] . $trace['type'] : '') .
-                $trace['function'] . "()\n";
-        }
-
-        return $traceString;
-    }
+function is_dev(): bool
+{
+    return !is_prod();
 }

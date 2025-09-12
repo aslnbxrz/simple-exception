@@ -2,9 +2,15 @@
   "name": "aslnbxrz/simple-exception",
   "description": "A comprehensive exception handling package for Laravel with custom error responses and enum-based error codes",
   "type": "library",
-  "keywords": ["laravel", "exception", "error-handling", "api", "response"],
+  "keywords": [
+    "laravel",
+    "exception",
+    "error-handling",
+    "api",
+    "response"
+  ],
   "license": "MIT",
-  "version": "1.0.35",
+  "version": "1.1.0",
   "authors": [
     {
       "name": "aslnbxrz",
@@ -39,7 +45,10 @@
   "autoload-dev": {
     "psr-4": {
       "Aslnbxrz\\SimpleException\\Tests\\": "tests/"
-    }
+    },
+    "files": [
+      "src/helpers/helpers.php"
+    ]
   },
   "extra": {
     "laravel": {

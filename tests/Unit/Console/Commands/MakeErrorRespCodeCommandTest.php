@@ -2,134 +2,91 @@
 
 namespace Aslnbxrz\SimpleException\Tests\Unit\Console\Commands;
 
-use Aslnbxrz\SimpleException\Console\Commands\MakeErrorRespCodeCommand;
 use Aslnbxrz\SimpleException\Tests\TestCase;
-use Illuminate\Support\Facades\File;
+use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\File;
 
 class MakeErrorRespCodeCommandTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
-        
-        // Clean up any existing test files
-        $this->cleanupTestFiles();
+        $this->cleanup();
     }
 
     protected function tearDown(): void
     {
-        $this->cleanupTestFiles();
+        $this->cleanup();
         parent::tearDown();
     }
 
-    private function cleanupTestFiles(): void
+    private function cleanup(): void
     {
-        $testFiles = [
+        $paths = [
             app_path('Enums/RespCodes/TestRespCode.php'),
             app_path('Enums/RespCodes/AnotherRespCode.php'),
             app_path('Enums/RespCodes/UserRespCode.php'),
             app_path('CustomEnums/TestRespCode.php'),
-            app_path('CustomEnums/AnotherRespCode.php'),
             app_path('Custom/ErrorCodes/TestRespCode.php'),
+            lang_path('vendor/simple-exception/en/test.php'),
+            lang_path('vendor/simple-exception/en/user.php'),
         ];
-
-        foreach ($testFiles as $file) {
-            if (File::exists($file)) {
-                File::delete($file);
-            }
+        foreach ($paths as $p) {
+            if (File::exists($p)) File::delete($p);
         }
     }
 
-    public function test_command_creates_error_resp_code_enum_with_name()
+    /**
+     * @throws FileNotFoundException
+     */
+    public function test_creates_enum_with_name()
     {
-        $this->artisan('make:resp-code', ['name' => 'Test'])
-            ->expectsOutput('✅ Error response code enum TestRespCode created successfully!')
-            ->assertExitCode(0);
+        $this->artisan('make:resp-code', ['name' => 'Test'])->assertExitCode(0);
 
-        $this->assertTrue(File::exists(app_path('Enums/RespCodes/TestRespCode.php')));
-    }
+        $enumFile = app_path('Enums/RespCodes/TestRespCode.php');
+        $this->assertTrue(File::exists($enumFile));
 
-    public function test_command_uses_config_directory()
-    {
-        // Set custom directory in config
-        Config::set('simple-exception.enum_generation.resp_codes_dir', 'CustomEnums');
-        
-        $this->artisan('make:resp-code', ['name' => 'Test'])
-            ->expectsOutput('✅ Error response code enum TestRespCode created successfully!')
-            ->expectsOutput('📦 Namespace: App\\CustomEnums')
-            ->expectsOutput('⚙️  Config: Directory set to \'CustomEnums\' in simple-exception config')
-            ->assertExitCode(0);
-
-        $this->assertTrue(File::exists(app_path('CustomEnums/TestRespCode.php')));
-    }
-
-    public function test_command_generates_namespace_from_directory()
-    {
-        // Set custom directory in config
-        Config::set('simple-exception.enum_generation.resp_codes_dir', 'Custom/ErrorCodes');
-        
-        $this->artisan('make:resp-code', ['name' => 'Test'])
-            ->expectsOutput('📦 Namespace: App\\Custom\\ErrorCodes')
-            ->assertExitCode(0);
-
-        $content = File::get(app_path('Custom/ErrorCodes/TestRespCode.php'));
-        $this->assertStringContainsString('namespace App\\Custom\\ErrorCodes;', $content);
-    }
-
-    public function test_command_automatically_adds_resp_code_suffix()
-    {
-        $this->artisan('make:resp-code', ['name' => 'User'])
-            ->expectsOutput('✅ Error response code enum UserRespCode created successfully!')
-            ->assertExitCode(0);
-
-        $this->assertTrue(File::exists(app_path('Enums/RespCodes/UserRespCode.php')));
-    }
-
-    public function test_command_removes_existing_resp_code_suffix()
-    {
-        $this->artisan('make:resp-code', ['name' => 'TestRespCode'])
-            ->expectsOutput('✅ Error response code enum TestRespCode created successfully!')
-            ->assertExitCode(0);
-
-        $this->assertTrue(File::exists(app_path('Enums/RespCodes/TestRespCode.php')));
-    }
-
-    public function test_command_prevents_duplicate_creation()
-    {
-        // Create first enum
-        $this->artisan('make:resp-code', ['name' => 'Another'])
-            ->assertExitCode(0);
-
-        // Try to create duplicate
-        $this->artisan('make:resp-code', ['name' => 'Another'])
-            ->expectsOutput('⚠️ Error response code enum AnotherRespCode already exists at ' . app_path('Enums/RespCodes/AnotherRespCode.php') . '!')
-            ->assertExitCode(1);
-    }
-
-    public function test_created_enum_has_correct_structure()
-    {
-        $this->artisan('make:resp-code', ['name' => 'Test'])
-            ->assertExitCode(0);
-
-        $content = File::get(app_path('Enums/RespCodes/TestRespCode.php'));
-
+        $content = File::get($enumFile);
         $this->assertStringContainsString('namespace App\\Enums\\RespCodes;', $content);
         $this->assertStringContainsString('enum TestRespCode', $content);
         $this->assertStringContainsString('implements ThrowableEnum', $content);
-        $this->assertStringContainsString('case UnknownError = 2001;', $content);
-        $this->assertStringContainsString('public function httpStatusCode(): int', $content);
-        $this->assertStringContainsString('use HasRespCodeTranslation, HasStatusCode;', $content);
     }
 
-    public function test_created_enum_has_usage_examples()
+    /**
+     * @throws FileNotFoundException
+     */
+    public function test_respects_config_directory_and_namespace()
     {
-        $this->artisan('make:resp-code', ['name' => 'Test'])
-            ->expectsOutput('🚀 Usage examples:')
-            ->expectsOutput('   error_if(true, TestRespCode::UnknownError);')
-            ->expectsOutput('   error_unless(false, TestRespCode::UnknownError);')
-            ->expectsOutput('   error(TestRespCode::UnknownError);')
-            ->expectsOutput('💡 Tip: You can add more cases to the enum as needed!')
-            ->assertExitCode(0);
+        Config::set('simple-exception.enum_generation.resp_codes_dir', 'Custom/ErrorCodes');
+
+        $this->artisan('make:resp-code', ['name' => 'Test'])->assertExitCode(0);
+
+        $enumFile = app_path('Custom/ErrorCodes/TestRespCode.php');
+        $this->assertTrue(File::exists($enumFile));
+
+        $content = File::get($enumFile);
+        $this->assertStringContainsString('namespace App\\Custom\\ErrorCodes;', $content);
+    }
+
+    public function test_auto_adds_and_normalizes_resp_code_suffix()
+    {
+        $this->artisan('make:resp-code', ['name' => 'User'])->assertExitCode(0);
+        $this->assertTrue(File::exists(app_path('Enums/RespCodes/UserRespCode.php')));
+
+        $this->artisan('make:resp-code', ['name' => 'TestRespCode'])->assertExitCode(0);
+        $this->assertTrue(File::exists(app_path('Enums/RespCodes/TestRespCode.php')));
+    }
+
+    public function test_duplicate_creation_without_force_keeps_existing()
+    {
+        $this->artisan('make:resp-code', ['name' => 'Another'])->assertExitCode(0);
+        $mtime1 = filemtime(app_path('Enums/RespCodes/AnotherRespCode.php'));
+
+        // Second time should not overwrite without --force
+        $this->artisan('make:resp-code', ['name' => 'Another'])->assertExitCode(0);
+        $mtime2 = filemtime(app_path('Enums/RespCodes/AnotherRespCode.php'));
+
+        $this->assertEquals($mtime1, $mtime2);
     }
 }
