@@ -99,12 +99,21 @@ class SyncTranslationsCommand extends Command
         return $errors > 0 ? self::FAILURE : self::SUCCESS;
     }
 
-    /** Normalize "en,uz,ru" -> ["en","uz","ru"] */
+    /** Normalize locales for sync command or fall back to config('simple-exception.locales') */
     private function normalizeLocales(string $csv): array
     {
-        return \array_values(\array_unique(\array_filter(\array_map(
-            fn($s) => \strtolower(\trim($s)), \explode(',', $csv)
+        $arr = array_values(array_unique(array_filter(array_map(
+            fn($s) => strtolower(trim($s)), explode(',', $csv)
         ))));
+
+        if (!empty($arr)) {
+            return $arr;
+        }
+
+        $cfg = (array)config('simple-exception.messages.locales', []);
+        $cfg = array_values(array_unique(array_map(fn($s) => strtolower(trim($s)), $cfg)));
+
+        return $cfg ?: ['en'];
     }
 
     /**

@@ -35,12 +35,22 @@ class MakeErrorRespCodeCommand extends Command
             return self::FAILURE;
         }
 
-        $class = $this->formatClassName($name);                 // FooRespCode
-        $pairs = $this->parseCases((string)$this->option('cases')); // [[CaseName, httpStatus], ...]
+        $class = $this->formatClassName($name);                  // FooRespCode
+        $pairs = $this->parseCases((string)$this->option('cases')); // [[CaseName, code], ...]
         $locales = $this->normalizeLocales((string)$this->option('locale'));
         $force = (bool)$this->option('force');
 
-        // 1) Resolve enum directory and namespace from config
+        // ✅ Yangi: agar --cases bo'sh bo'lsa, interaktiv rejimga o'tamiz
+        if (empty($pairs)) {
+            $this->warn('No cases provided via --cases. Enter at least one case interactively.');
+            $pairs = $this->askCasesInteractive();
+            if (empty($pairs)) {
+                $this->error('At least one case is required.');
+                return self::FAILURE;
+            }
+        }
+
+        // 1) Resolve enum directory and namespace...
         $relDir = (string)Config::get('simple-exception.enum_generation.resp_codes_dir', 'Enums/RespCodes');
         $enumDir = app_path(trim($relDir, '/'));
         $ns = 'App\\' . implode('\\', array_map('ucfirst', array_filter(explode('/', trim($relDir, '/')))));
@@ -48,7 +58,7 @@ class MakeErrorRespCodeCommand extends Command
 
         $this->fs->ensureDirectoryExists($enumDir);
 
-        // 2) Write enum file (respect --force)
+        // 2) Write enum file
         if ($this->fs->exists($enumPath) && !$force) {
             $this->warn("Enum already exists: {$enumPath} (use --force to overwrite)");
         } else {
@@ -56,9 +66,9 @@ class MakeErrorRespCodeCommand extends Command
             $this->info("Enum created: {$enumPath}");
         }
 
-        // 3) Seed translation files per-locale in: lang/vendor/simple-exception/{file}/{locale}.php
+        // 3) Seed translations
         $basePath = (string)Config::get('simple-exception.translations.base_path', 'vendor/simple-exception');
-        $fileSnake = $this->toSnake(preg_replace('/RespCode$/', '', $class)); // e.g. MainRespCode -> main
+        $fileSnake = $this->toSnake(\preg_replace('/RespCode$/', '', $class));
 
         foreach ($locales as $locale) {
             $langDir = lang_path("{$basePath}/{$fileSnake}");
@@ -67,25 +77,23 @@ class MakeErrorRespCodeCommand extends Command
             $this->fs->ensureDirectoryExists($langDir);
 
             if ($this->fs->exists($langPath) && !$force) {
-                // Merge new keys into existing file (do NOT override existing keys)
                 $existing = (array)include $langPath;
                 $merged = $this->mergeLang($existing, $pairs, $locale);
                 $this->fs->put($langPath, $this->exportLang($merged));
                 $this->line("Lang updated: {$langPath}");
             } else {
-                // Fresh file (or forced overwrite)
                 $content = $this->initialLang($pairs, $locale);
                 $this->fs->put($langPath, $this->exportLang($content));
                 $this->line(($force ? 'Lang overwritten: ' : 'Lang created: ') . $langPath);
             }
         }
 
-        // 4) Some usage hints
+        // 4) Hints
         $this->line('');
         $this->line('Usage examples:');
-        $this->line("  error_if(true, {$class}::UnknownError);");
-        $this->line("  error_unless(false, {$class}::UnknownError);");
-        $this->line("  error({$class}::UnknownError);");
+        $this->line("  error_if(true, {$class}::{$pairs[0][0]});");
+        $this->line("  error_unless(false, {$class}::{$pairs[0][0]});");
+        $this->line("  error({$class}::{$pairs[0][0]});");
 
         return self::SUCCESS;
     }
@@ -110,6 +118,47 @@ class MakeErrorRespCodeCommand extends Command
         return $name;
     }
 
+    /**
+     * Interaktiv tarzda kamida 1 ta case yig'adi.
+     * Har bir case uchun: Name (CamelCase) va Code (butun son, masalan 3000).
+     */
+    private function askCasesInteractive(): array
+    {
+        $this->line('➕ Add cases (at least one). Leave Name empty to finish (after you have ≥1).');
+
+        $pairs = [];
+        while (true) {
+            $name = trim((string)$this->ask('Case Name (CamelCase, e.g. UserNotFound) [empty to finish]'));
+
+            if ($name === '') {
+                if (!empty($pairs)) {
+                    break;
+                }
+                $this->warn('You must provide at least one case.');
+                continue;
+            }
+
+            if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $name)) {
+                $this->error('Invalid case name. Use letters/numbers/underscore, starting with a letter.');
+                continue;
+            }
+
+            $codeInput = trim((string)$this->ask("Code for {$name} (integer, e.g. 3000)"));
+            if ($codeInput === '' || !ctype_digit($codeInput)) {
+                $this->error('Code must be a positive integer.');
+                continue;
+            }
+
+            $pairs[] = [$name, (int)$codeInput];
+
+            if (!$this->confirm('Add another case?', true)) {
+                break;
+            }
+        }
+
+        return $pairs;
+    }
+
     /** Turn "Foo" into "FooRespCode" (idempotent) */
     private function formatClassName(string $base): string
     {
@@ -117,15 +166,19 @@ class MakeErrorRespCodeCommand extends Command
         return ucfirst($base) . 'RespCode';
     }
 
-    /** Parse CSV "Case=Status" into array of [case, status] */
+    /** Parse CSV like "Case=Status,Other:123" into array of [case, status] */
+    /** Parse CSV like "Case=Code,Other:123" into array of [case, code] */
     private function parseCases(string $csv): array
     {
         $out = [];
+        if (trim($csv) === '') {
+            return $out;
+        }
         foreach (array_filter(array_map('trim', explode(',', $csv))) as $pair) {
-            if (!str_contains($pair, '=')) continue;
-            [$name, $val] = array_map('trim', explode('=', $pair, 2));
-            if ($name === '' || $val === '' || !is_numeric($val)) continue;
-            $out[] = [$name, (int)$val];
+            if (!preg_match('/^\s*([A-Za-z][A-Za-z0-9_]*)\s*[:=]\s*([0-9]+)\s*$/', $pair, $m)) {
+                continue;
+            }
+            $out[] = [$m[1], (int)$m[2]];
         }
         return $out;
     }
@@ -157,19 +210,17 @@ class MakeErrorRespCodeCommand extends Command
     }
 
     /** Generate enum source code */
+    /** Generate enum source code without fallback UnknownError case */
     private function buildEnumSource(string $ns, string $class, array $pairs): string
     {
-        $casesBlock = empty($pairs)
-            ? "    case UnknownError = 2001;\n"
-            : implode("", array_map(fn($p) => "    case {$p[0]} = {$p[1]};\n", $pairs));
+        // $pairs always ≥ 1 at this point
+        $casesBlock = implode("", array_map(fn($p) => "    case {$p[0]} = {$p[1]};\n", $pairs));
 
-        $matches = empty($pairs)
-            ? "            self::UnknownError => Response::HTTP_INTERNAL_SERVER_ERROR,"
-            : implode("\n", array_map(function ($p) {
-                [$name, $val] = $p;
-                $http = $this->httpConst($val);
-                return "            self::{$name} => Response::HTTP_{$http},";
-            }, $pairs));
+        $matches = implode("\n", array_map(function ($p) {
+            [$name, $val] = $p;
+            $http = $this->httpConst($val);
+            return "            self::{$name} => Response::HTTP_{$http},";
+        }, $pairs));
 
         return <<<PHP
 <?php
@@ -197,13 +248,22 @@ enum {$class}: int implements ThrowableEnum
 PHP;
     }
 
-    /** Normalize comma-separated locales */
+    /** Normalize comma-separated locales or fall back to config('simple-exception.locales') */
     private function normalizeLocales(string $csv): array
     {
         $arr = array_values(array_unique(array_filter(array_map(
             fn($s) => strtolower(trim($s)), explode(',', $csv)
         ))));
-        return $arr ?: ['en'];
+
+        if (!empty($arr)) {
+            return $arr;
+        }
+
+        // Fallback to config
+        $cfg = (array)config('simple-exception.messages.locales', []);
+        $cfg = array_values(array_unique(array_map(fn($s) => strtolower(trim($s)), $cfg)));
+
+        return $cfg ?: ['en'];
     }
 
     /** CamelCase → snake_case */
@@ -214,32 +274,31 @@ PHP;
         return str_replace('__', '_', $s);
     }
 
-    /** Default human-readable message for a snake key in a given locale */
+    /** Build default message using config-driven patterns/overrides */
     private function defaultMessage(string $snakeKey, string $locale): string
     {
+        $messagesCfg = (array)config('simple-exception.messages', []);
+        $patterns = (array)($messagesCfg['patterns'] ?? []);
+        $fallback = (string)($messagesCfg['locale_fallback'] ?? 'en');
+
+        // Pattern
+        $pattern = $patterns[$locale]
+            ?? $patterns[$fallback]
+            ?? ':readable error occurred.';
+
+        // prepare :readable
         $readable = ucfirst(str_replace('_', ' ', $snakeKey));
-        return match ($locale) {
-            'uz' => "{$readable} xatosi yuz berdi.",
-            'ru' => "Произошла ошибка: {$readable}.",
-            default => "{$readable} error occurred.",
-        };
+
+        return str_replace(':readable', $readable, $pattern);
     }
 
-    /**
-     * Create initial lang array for a given locale:
-     * - If no explicit cases: add "unknown_error"
-     * - Else: add one key per case (snake-cased), with a sensible default message
-     */
+    /** Create initial lang array for a given locale */
     private function initialLang(array $pairs, string $locale): array
     {
         $lang = [];
-        if (empty($pairs)) {
-            $lang['unknown_error'] = $this->defaultMessage('unknown_error', $locale);
-        } else {
-            foreach ($pairs as [$case, $_]) {
-                $key = $this->toSnake($case);
-                $lang[$key] = $this->defaultMessage($key, $locale);
-            }
+        foreach ($pairs as [$case, $_]) {
+            $key = $this->toSnake($case);
+            $lang[$key] = $this->defaultMessage($key, $locale);
         }
         return $lang;
     }
@@ -264,13 +323,31 @@ PHP;
      *
      *   <?php
      *
-     *   return array (
+     *   return [
      *     'key' => 'value',
-     *   );
+     *   ];
      */
+    /** Export lang array as PHP using short array syntax [ ] */
     private function exportLang(array $translations): string
     {
-        return "<?php\n\nreturn " . var_export($translations, true) . ";\n";
+        ksort($translations);
+
+        $lines = [];
+        foreach ($translations as $k => $v) {
+            $key = addslashes($k);
+            $val = addslashes($v);
+            $lines[] = "    '{$key}' => '{$val}',";
+        }
+
+        $body = implode("\n", $lines);
+
+        return <<<PHP
+<?php
+
+return [
+{$body}
+];
+PHP;
     }
 
     /**

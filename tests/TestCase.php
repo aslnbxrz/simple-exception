@@ -18,5 +18,12 @@ abstract class TestCase extends Orchestra
         $app['config']->set('simple-exception.environment', 'testing');
         $app['config']->set('simple-exception.response.template', 'default');
         $app['config']->set('app.debug', true); // meta visible
+        $app['config']->set('simple-exception.messages', [
+            'locales' => ['en'],
+            'locale_fallback' => 'en',
+            'patterns' => [
+                'en' => ':readable error occurred.',
+            ],
+        ]);
     }
 }

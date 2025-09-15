@@ -81,4 +81,25 @@ return [
         'cache_messages' => env('SIMPLE_EXCEPTION_CACHE_MESSAGES', true),
         'cache_duration' => env('SIMPLE_EXCEPTION_CACHE_DURATION', 3600),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Message patterns (config-driven defaults)
+    |--------------------------------------------------------------------------
+    | - ":readable" human-readable string like 'user not found'
+    */
+    'messages' => [
+        'locale_fallback' => 'en',
+
+        'locales' => [
+
+        ],
+
+        'patterns' => [
+            'en' => ':readable error occurred.',
+            'uz' => ':readable xatosi yuz berdi.',
+            'ru' => 'Ошибка: :readable.',
+            'kaa' => ':readable qáteligi júz berdi.',
+        ],
+    ],
 ];
