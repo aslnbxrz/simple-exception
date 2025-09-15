@@ -7,17 +7,11 @@ use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 
 /**
- * Artisan command: generate a new *RespCode enum and seed translation entries.
+ * Generate a new *RespCode enum and create per-enum translation files.
  *
- * Behavior:
- * - Creates App\...\{Name}RespCode enum file from the configured directory/namespace.
- * - Writes translations to lang/{base_path}/{locale}.php (base_path from config).
- * - Inside each locale file, entries are grouped by enum snake name.
- * - Existing translations are preserved; only missing keys are added.
- *
- * Examples:
- *  php artisan make:resp-code Main --cases="NotFound=404,Forbidden=403" --locale=en,uz
- *  php artisan make:resp-code User
+ * Files:
+ *   app/{resp_codes_dir}/{Class}RespCode.php
+ *   lang/{base_path}/{file}/{locale}.php
  */
 class MakeErrorRespCodeCommand extends Command
 {
@@ -27,7 +21,7 @@ class MakeErrorRespCodeCommand extends Command
         {--locale= : Locale(s), comma-separated; defaults to config("simple-exception.translations.locales")}
         {--force : Overwrite enum file if present (translations are always merged)}';
 
-    protected $description = 'Create a new error response enum and seed translation entries';
+    protected $description = 'Create a new error response enum and its per-enum translation file(s)';
 
     public function __construct(
         private readonly Filesystem          $fs,
@@ -44,12 +38,11 @@ class MakeErrorRespCodeCommand extends Command
             return self::FAILURE;
         }
 
-        $class = $this->formatClassName($name);                      // Example: FooRespCode
-        $pairs = $this->parseCases((string)$this->option('cases')); // [[CaseName, code], ...]
+        $class = $this->formatClassName($name);                        // FooRespCode
+        $pairs = $this->parseCases((string)$this->option('cases'));   // [[CaseName, code], ...]
         $locales = EnumTranslationSync::normalizeLocales((string)($this->option('locale') ?? ''));
         $force = (bool)$this->option('force');
 
-        // Require at least one case. If --cases is empty, switch to interactive input.
         if (empty($pairs)) {
             $this->warn('No cases provided via --cases. Enter at least one case interactively.');
             $pairs = $this->askCasesInteractive();
@@ -69,20 +62,20 @@ class MakeErrorRespCodeCommand extends Command
 
         // 2) Write enum file
         if ($this->fs->exists($enumPath) && !$force) {
-            $this->warn("Enum already exists: $enumPath (use --force to overwrite)");
+            $this->warn("Enum already exists: {$enumPath} (use --force to overwrite)");
         } else {
             $this->fs->put($enumPath, $this->buildEnumSource($ns, $class, $pairs));
-            $this->info("Enum created: $enumPath");
+            $this->info("Enum created: {$enumPath}");
         }
 
-        // 3) Generate translations into lang/{base_path}/{locale}.php
-        $group = EnumTranslationSync::toSnake(preg_replace('/RespCode$/', '', $class));
+        // 3) Per-enum translation files: lang/{base_path}/{file}/{locale}.php
+        $file = EnumTranslationSync::generateFileName($class); // e.g. "auth"
         foreach ($locales as $locale) {
-            $langPath = EnumTranslationSync::localeFilePath($locale);
+            $langPath = EnumTranslationSync::translationFilePath($file, $locale);
             $this->fs->ensureDirectoryExists(dirname($langPath));
 
-            $existing = $this->sync->readLocaleFile($langPath);
-            $updated = EnumTranslationSync::mergePairsIntoGroup($existing, $group, $pairs, $locale);
+            $existing = $this->sync->readLangFile($langPath);
+            $updated = EnumTranslationSync::mergePairs($existing, $pairs, $locale);
 
             $this->fs->put($langPath, EnumTranslationSync::exportLang($updated));
             $this->line(($existing === [] ? 'Lang created: ' : 'Lang updated: ') . $langPath);
@@ -91,9 +84,9 @@ class MakeErrorRespCodeCommand extends Command
         // 4) Hints
         $this->line('');
         $this->line('Usage examples:');
-        $this->line("  error_if(true, $class::{$pairs[0][0]});");
-        $this->line("  error_unless(false, $class::{$pairs[0][0]});");
-        $this->line("  error($class::{$pairs[0][0]});");
+        $this->line("  error_if(true, {$class}::{$pairs[0][0]});");
+        $this->line("  error_unless(false, {$class}::{$pairs[0][0]});");
+        $this->line("  error({$class}::{$pairs[0][0]});");
 
         return self::SUCCESS;
     }
@@ -118,10 +111,7 @@ class MakeErrorRespCodeCommand extends Command
         return $name;
     }
 
-    /**
-     * Interactive case builder.
-     * Prompts the user until at least one case is defined.
-     */
+    /** Interactive case builder (at least one) */
     private function askCasesInteractive(): array
     {
         $this->line('➕ Add cases (at least one). Leave Name empty to finish (after you have ≥1).');
@@ -143,7 +133,7 @@ class MakeErrorRespCodeCommand extends Command
                 continue;
             }
 
-            $codeInput = trim((string)$this->ask("Code for $name (integer, e.g. 3000)"));
+            $codeInput = trim((string)$this->ask("Code for {$name} (integer, e.g. 3000)"));
             if ($codeInput === '' || !ctype_digit($codeInput)) {
                 $this->error('Code must be a positive integer.');
                 continue;
@@ -159,14 +149,14 @@ class MakeErrorRespCodeCommand extends Command
         return $pairs;
     }
 
-    /** Format class name into FooRespCode (idempotent) */
+    /** "Foo" → "FooRespCode" (idempotent) */
     private function formatClassName(string $base): string
     {
         $base = preg_replace('/RespCode$/i', '', $base);
         return ucfirst($base) . 'RespCode';
     }
 
-    /** Parse CSV string like "Case=Code,Other:123" into [case, code] pairs */
+    /** Parse "Case=Code,Other:123" → [[case, code], ...] */
     private function parseCases(string $csv): array
     {
         $out = [];
@@ -182,7 +172,7 @@ class MakeErrorRespCodeCommand extends Command
         return $out;
     }
 
-    /** Map numeric code to Symfony\HttpFoundation\Response constant */
+    /** Numeric code → Symfony Response constant name */
     private function httpConst(int $status): string
     {
         return match ($status) {
@@ -200,6 +190,7 @@ class MakeErrorRespCodeCommand extends Command
             422 => 'UNPROCESSABLE_ENTITY',
             426 => 'UPGRADE_REQUIRED',
             429 => 'TOO_MANY_REQUESTS',
+            500 => 'INTERNAL_SERVER_ERROR',
             502 => 'BAD_GATEWAY',
             503 => 'SERVICE_UNAVAILABLE',
             504 => 'GATEWAY_TIMEOUT',
@@ -218,20 +209,20 @@ class MakeErrorRespCodeCommand extends Command
         $matches = implode("\n", array_map(function ($p) {
             [$name, $val] = $p;
             $http = $this->httpConst($val);
-            return "            self::$name => Response::HTTP_$http,";
+            return "            self::{$name} => Response::HTTP_{$http},";
         }, $pairs));
 
         return <<<PHP
 <?php
 
-namespace $ns;
+namespace {$ns};
 
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
 use Aslnbxrz\SimpleException\Traits\HasRespCodeTranslation;
 use Aslnbxrz\SimpleException\Traits\HasStatusCode;
 use Symfony\Component\HttpFoundation\Response;
 
-enum $class: int implements ThrowableEnum
+enum {$class}: int implements ThrowableEnum
 {
     use HasRespCodeTranslation, HasStatusCode;
 

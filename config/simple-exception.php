@@ -69,7 +69,7 @@ return [
     |--------------------------------------------------------------------------
     */
     'translations' => [
-        'base_path' => env('SIMPLE_EXCEPTION_TRANSLATIONS_PATH', 'simple-exception'),
+        'base_path' => env('SIMPLE_EXCEPTION_TRANSLATIONS_PATH', 'vendor/simple-exceptions'),
 
         'locale_fallback' => 'en',
 

@@ -6,20 +6,10 @@ use Aslnbxrz\SimpleException\Support\EnumTranslationSync;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use ReflectionClass;
-use ReflectionException;
-use Throwable;
 
 /**
- * Artisan command: sync translation entries for one or more ThrowableEnum enums.
- *
- * Behavior:
- * - Scans enum cases and ensures keys exist in lang/{base_path}/{locale}.php
- * - Entries are grouped by enum snake name.
- * - Preserves existing values; only missing keys are added.
- *
- * Examples:
- *  php artisan sync:resp-translations App\\Enums\\RespCodes\\MainRespCode --locale=en,uz
- *  php artisan sync:resp-translations --all --locale=en,ru
+ * Sync per-enum translation files without overriding existing values.
+ * Files: lang/{base_path}/{file}/{locale}.php
  */
 class SyncTranslationsCommand extends Command
 {
@@ -29,7 +19,7 @@ class SyncTranslationsCommand extends Command
         {--all : Sync all enums found in configured directory}
         {--use-messages : (reserved) if your enum exposes custom message() per case}';
 
-    protected $description = 'Sync translations for ThrowableEnum enums without overriding existing messages';
+    protected $description = 'Sync translations for ThrowableEnum enums (per-enum files)';
 
     public function __construct(
         private readonly Filesystem          $fs,
@@ -39,15 +29,12 @@ class SyncTranslationsCommand extends Command
         parent::__construct();
     }
 
-    /**
-     * @throws ReflectionException
-     */
     public function handle(): int
     {
         $enumArg = (string)($this->argument('enum') ?? '');
         $localesInput = (string)($this->option('locale') ?? '');
         $syncAll = (bool)$this->option('all');
-        $useMessages = (bool)$this->option('use-messages'); // reserved for future behavior
+        $useMessages = (bool)$this->option('use-messages'); // reserved
 
         $locales = EnumTranslationSync::normalizeLocales($localesInput);
         if (empty($locales)) {
@@ -56,6 +43,7 @@ class SyncTranslationsCommand extends Command
         }
 
         // Build enum list
+        $enums = [];
         if ($syncAll || $enumArg === '') {
             $enums = $this->discoverEnums();
             if (empty($enums)) {
@@ -66,7 +54,7 @@ class SyncTranslationsCommand extends Command
         } else {
             $fqcn = $this->normalizeEnumClass($enumArg);
             if (!$this->isValidEnum($fqcn)) {
-                $this->error("Class $fqcn is not a valid enum implementing ThrowableEnum.");
+                $this->error("Class {$fqcn} is not a valid enum implementing ThrowableEnum.");
                 return self::FAILURE;
             }
             $enums = [$fqcn];
@@ -76,24 +64,24 @@ class SyncTranslationsCommand extends Command
         $touched = [];
 
         foreach ($enums as $enumClass) {
-            $this->line("🔄 $enumClass");
+            $this->line("🔄 {$enumClass}");
 
-            $group = EnumTranslationSync::toSnake(preg_replace('/RespCode$/', '', class_basename($enumClass)));
+            $file = EnumTranslationSync::generateFileName($enumClass);
             $cases = EnumTranslationSync::enumCaseNames($enumClass);
 
             foreach ($locales as $locale) {
                 try {
-                    $langPath = EnumTranslationSync::localeFilePath($locale);
+                    $langPath = EnumTranslationSync::translationFilePath($file, $locale);
                     $this->fs->ensureDirectoryExists(dirname($langPath));
 
-                    $existing = $this->sync->readLocaleFile($langPath);
-                    $updated = EnumTranslationSync::mergeCasesIntoGroup($existing, $group, $cases, $locale);
+                    $existing = $this->sync->readLangFile($langPath);
+                    $updated = EnumTranslationSync::mergeCases($existing, $cases, $locale);
 
                     $this->fs->put($langPath, EnumTranslationSync::exportLang($updated));
-                    $this->line("   ✅ $locale.php updated");
+                    $this->line("   ✅ {$file}/{$locale}.php updated");
                     $touched[] = $langPath;
-                } catch (Throwable $e) {
-                    $this->line("   ❌ $locale: " . $e->getMessage());
+                } catch (\Throwable $e) {
+                    $this->line("   ❌ {$locale}: " . $e->getMessage());
                     $errors++;
                 }
             }
@@ -105,7 +93,7 @@ class SyncTranslationsCommand extends Command
         $this->line('   Locales: ' . implode(', ', $locales));
         $this->line('   Files touched: ' . count(array_unique($touched)));
         if ($errors > 0) {
-            $this->warn("   Errors: $errors");
+            $this->warn("   Errors: {$errors}");
         }
 
         return $errors > 0 ? self::FAILURE : self::SUCCESS;

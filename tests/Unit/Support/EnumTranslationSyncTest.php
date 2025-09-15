@@ -31,8 +31,8 @@ class EnumTranslationSyncTest extends TestCase
     protected function tearDown(): void
     {
         $paths = [
-            lang_path('simple-exception/en.php'),
-            lang_path('simple-exception/uz.php'),
+            lang_path('simple-exception/test/en.php'),
+            lang_path('simple-exception/test/uz.php'),
         ];
         foreach ($paths as $p) {
             if ($this->fs->exists($p)) {
@@ -50,14 +50,14 @@ class EnumTranslationSyncTest extends TestCase
 
         $this->assertSame('user', $g1);
         $this->assertSame('main', $g2);
-        // "TestEnum" -> "test_enum" (our toSnake inserts underscore before capitals)
         $this->assertSame('test_enum', $g3);
     }
 
-    public function test_locale_file_path_for_en_locale()
+    public function test_translation_file_path_for_en_locale()
     {
-        $path = EnumTranslationSync::localeFilePath('en');
-        $this->assertSame(lang_path('simple-exception/en.php'), $path);
+        // per-enum/per-locale path: lang/simple-exception/{file}/{locale}.php
+        $path = EnumTranslationSync::translationFilePath('test', 'en');
+        $this->assertSame(lang_path('simple-exception/test/en.php'), $path);
     }
 
     public function test_default_message_static()

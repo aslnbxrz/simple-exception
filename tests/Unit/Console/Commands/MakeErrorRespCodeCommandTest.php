@@ -39,9 +39,10 @@ class MakeErrorRespCodeCommandTest extends TestCase
             app_path('Enums/RespCodes/UserRespCode.php'),
             app_path('CustomEnums/TestRespCode.php'),
             app_path('Custom/ErrorCodes/TestRespCode.php'),
-            // one-file-per-locale
-            lang_path('simple-exception/en.php'),
-            lang_path('simple-exception/uz.php'),
+            // per-enum/per-locale files
+            lang_path('simple-exception/test/en.php'),
+            lang_path('simple-exception/another/en.php'),
+            lang_path('simple-exception/user/en.php'),
         ];
         foreach ($paths as $p) {
             if (File::exists($p)) {
@@ -55,7 +56,6 @@ class MakeErrorRespCodeCommandTest extends TestCase
      */
     public function test_creates_enum_with_name_interactively()
     {
-        // Correct prompt flow ONLY (remove the earlier wrong attempt)
         $this->artisan('make:resp-code')
             ->expectsQuestion('Name', 'Test')
             ->expectsQuestion('Case Name (CamelCase, e.g. UserNotFound) [empty to finish]', 'UserNotFound')
@@ -72,19 +72,16 @@ class MakeErrorRespCodeCommandTest extends TestCase
         $this->assertStringContainsString('implements ThrowableEnum', $content);
         $this->assertStringContainsString('case UserNotFound = 3001;', $content);
 
-        // NEW path: lang/simple-exception/en.php
-        $langFile = lang_path('simple-exception/en.php');
+        // NEW per-enum/per-locale path
+        $langFile = lang_path('simple-exception/test/en.php');
         $this->assertTrue(File::exists($langFile), 'Lang file not created');
 
         $lang = include $langFile;
         $this->assertIsArray($lang);
-
-        // NEW structure: group by enum base name "test"
-        $this->assertArrayHasKey('test', $lang);
-        $this->assertIsArray($lang['test']);
-        $this->assertArrayHasKey('user_not_found', $lang['test']);
-        $this->assertIsString($lang['test']['user_not_found']);
-        $this->assertSame('User not found error occurred.', $lang['test']['user_not_found']);
+        // flat structure inside file
+        $this->assertArrayHasKey('user_not_found', $lang);
+        $this->assertIsString($lang['user_not_found']);
+        $this->assertSame('User not found error occurred.', $lang['user_not_found']);
     }
 
     /**
@@ -150,5 +147,8 @@ class MakeErrorRespCodeCommandTest extends TestCase
         clearstatcache(true, $path);
         $mtime2 = filemtime($path);
         $this->assertEquals($mtime1, $mtime2, 'File was unexpectedly modified without --force');
+
+        // and lang file path for "another" group should exist (created on first run)
+        $this->assertTrue(File::exists(lang_path('simple-exception/another/en.php')));
     }
 }
