@@ -5,6 +5,7 @@ namespace Aslnbxrz\SimpleException\Exceptions;
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Throwable;
 
@@ -127,13 +128,19 @@ final class SimpleExceptionHandler
     private static function exceptionHttpCode(Throwable $e): int
     {
         if (method_exists($e, 'getStatusCode')) {
-            $s = (int)$e->getStatusCode();
-            if ($s > 0) return $s;
+            try {
+                $s = (int)$e->getStatusCode();
+                if ($s > 0) {
+                    return $s;
+                }
+            } catch (Throwable) {
+            }
         }
-        if (method_exists($e, 'status')) {
-            $s = (int)$e->status();
-            if ($s > 0) return $s;
+
+        if ($e instanceof ValidationException) {
+            return 422;
         }
+
         return HttpResponse::HTTP_INTERNAL_SERVER_ERROR;
     }
 
