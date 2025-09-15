@@ -13,13 +13,13 @@ class MakeErrorRespCodeCommandTest extends TestCase
     {
         parent::setUp();
 
-        config()->set('simple-exception.locales', ['en']);
-        config()->set('simple-exception.messages', [
-            'locale_fallback' => 'en',
+        config()->set('simple-exception.translations.base_path', 'simple-exception');
+        config()->set('simple-exception.translations.locales', ['en']);
+        config()->set('simple-exception.translations.locale_fallback', 'en');
+        config()->set('simple-exception.translations.messages', [
             'patterns' => [
                 'en' => ':readable error occurred.',
-            ],
-            'overrides' => [],
+            ]
         ]);
 
         $this->cleanup();
@@ -39,9 +39,9 @@ class MakeErrorRespCodeCommandTest extends TestCase
             app_path('Enums/RespCodes/UserRespCode.php'),
             app_path('CustomEnums/TestRespCode.php'),
             app_path('Custom/ErrorCodes/TestRespCode.php'),
-            lang_path('vendor/simple-exception/test/en.php'),
-            lang_path('vendor/simple-exception/user/en.php'),
-            lang_path('vendor/simple-exception/another/en.php'),
+            // one-file-per-locale
+            lang_path('simple-exception/en.php'),
+            lang_path('simple-exception/uz.php'),
         ];
         foreach ($paths as $p) {
             if (File::exists($p)) {
@@ -55,6 +55,7 @@ class MakeErrorRespCodeCommandTest extends TestCase
      */
     public function test_creates_enum_with_name_interactively()
     {
+        // Correct prompt flow ONLY (remove the earlier wrong attempt)
         $this->artisan('make:resp-code')
             ->expectsQuestion('Name', 'Test')
             ->expectsQuestion('Case Name (CamelCase, e.g. UserNotFound) [empty to finish]', 'UserNotFound')
@@ -71,12 +72,19 @@ class MakeErrorRespCodeCommandTest extends TestCase
         $this->assertStringContainsString('implements ThrowableEnum', $content);
         $this->assertStringContainsString('case UserNotFound = 3001;', $content);
 
-        $langFile = lang_path('vendor/simple-exception/test/en.php');
+        // NEW path: lang/simple-exception/en.php
+        $langFile = lang_path('simple-exception/en.php');
         $this->assertTrue(File::exists($langFile), 'Lang file not created');
+
         $lang = include $langFile;
         $this->assertIsArray($lang);
-        $this->assertArrayHasKey('user_not_found', $lang);
-        $this->assertIsString($lang['user_not_found']);
+
+        // NEW structure: group by enum base name "test"
+        $this->assertArrayHasKey('test', $lang);
+        $this->assertIsArray($lang['test']);
+        $this->assertArrayHasKey('user_not_found', $lang['test']);
+        $this->assertIsString($lang['test']['user_not_found']);
+        $this->assertSame('User not found error occurred.', $lang['test']['user_not_found']);
     }
 
     /**

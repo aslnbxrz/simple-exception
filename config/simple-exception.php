@@ -69,7 +69,25 @@ return [
     |--------------------------------------------------------------------------
     */
     'translations' => [
-        'base_path' => env('SIMPLE_EXCEPTION_TRANSLATIONS_PATH', 'vendor/simple-exception'),
+        'base_path' => env('SIMPLE_EXCEPTION_TRANSLATIONS_PATH', 'simple-exception'),
+
+        'locale_fallback' => 'en',
+
+        'locales' => [
+            'en'
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | Message patterns (config-driven defaults)
+        |--------------------------------------------------------------------------
+        | - ":readable" human-readable string like 'user not found'
+        */
+        'messages' => [
+            'patterns' => [
+                'en' => ':readable error occurred.',
+            ],
+        ],
     ],
 
     /*
@@ -80,26 +98,5 @@ return [
     'performance' => [
         'cache_messages' => env('SIMPLE_EXCEPTION_CACHE_MESSAGES', true),
         'cache_duration' => env('SIMPLE_EXCEPTION_CACHE_DURATION', 3600),
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Message patterns (config-driven defaults)
-    |--------------------------------------------------------------------------
-    | - ":readable" human-readable string like 'user not found'
-    */
-    'messages' => [
-        'locale_fallback' => 'en',
-
-        'locales' => [
-
-        ],
-
-        'patterns' => [
-            'en' => ':readable error occurred.',
-            'uz' => ':readable xatosi yuz berdi.',
-            'ru' => 'Ошибка: :readable.',
-            'kaa' => ':readable qáteligi júz berdi.',
-        ],
     ],
 ];

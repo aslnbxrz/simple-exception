@@ -5,145 +5,142 @@ namespace Aslnbxrz\SimpleException\Support;
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Str;
+use ReflectionClass;
 use ReflectionEnum;
+use ReflectionException;
+use Throwable;
 
+/**
+ * Centralized utilities for translation syncing & generation.
+ * - Computes target lang paths using config("simple-exception.translations.base_path").
+ * - Reads/writes locale files (one file per locale).
+ * - Merges groups (per enum snake name) without overriding existing values.
+ * - Provides locale normalization and default message generation.
+ */
 readonly class EnumTranslationSync
 {
     public function __construct(private Filesystem $files)
     {
     }
 
-    /**
-     * Main entry: sync single enum -> lang/vendor/simple-exception/{locale}/{file}.php
-     */
-    public function sync(string $enumClass, string $locale = 'en', ?string $fileName = null, bool $useMessages = false): array
+    /** Normalize locales (CLI option → config fallback → default ['en']) */
+    public static function normalizeLocales(string $csv): array
     {
-        if (!enum_exists($enumClass)) {
-            throw new \InvalidArgumentException("Enum class {$enumClass} does not exist.");
-        }
-        if (!is_subclass_of($enumClass, ThrowableEnum::class)) {
-            throw new \InvalidArgumentException("Enum class {$enumClass} must implement ThrowableEnum.");
-        }
+        $arr = array_values(array_unique(array_filter(array_map(
+            fn($s) => strtolower(trim($s)),
+            explode(',', $csv)
+        ))));
 
-        $fileName = $fileName ?? $this->generateFileName($enumClass);
-
-        // NEW canonical path (locale first)
-        $newPath = $this->translationFilePath($fileName, $locale);
-
-        // Auto-migrate from OLD path (file first) if exists
-        $oldPath = $this->legacyTranslationFilePath($fileName, $locale);
-        $legacy = $this->loadExistingTranslations($oldPath);
-        $current = $this->loadExistingTranslations($newPath);
-
-        // Build enum keys (always)
-        $enumTranslations = $this->extractEnumTranslations($enumClass, $useMessages);
-
-        // Merge order: current (new) + legacy (old) + enumDefaults (faqat yo‘qlar)
-        $merged = $this->mergeTranslations($current, $legacy);
-        $merged = $this->mergeTranslations($merged, $enumTranslations);
-
-        // Ensure dir and save
-        $this->files->ensureDirectoryExists(\dirname($newPath), 0755, true);
-        $this->saveTranslations($newPath, $merged);
-
-        // Clean up legacy file if there was one
-        if ($legacy && $this->files->exists($oldPath)) {
-            $this->files->delete($oldPath);
-            // Agar papka bo‘sh qolsa – o‘chirib yuborish ixtiyoriy
-            $legacyDir = \dirname($oldPath);
-            if ($this->files->exists($legacyDir) && empty($this->files->files($legacyDir))) {
-                $this->files->deleteDirectory($legacyDir);
-            }
+        if (!empty($arr)) {
+            return $arr;
         }
 
-        return [
-            'file_path' => $newPath,
-            'enum_class' => $enumClass,
-            'locale' => $locale,
-            'file_name' => $fileName,
-            'total_cases' => \count($enumTranslations),
-            'new_cases' => \count(\array_diff_key($enumTranslations, $current + $legacy)),
-            'updated_cases' => \count(\array_intersect_key($enumTranslations, $current + $legacy)),
-        ];
+        $cfg = (array)config('simple-exception.translations.locales', []);
+        $cfg = array_values(array_unique(array_map(
+            fn($s) => strtolower(trim($s)),
+            $cfg
+        )));
+
+        return $cfg ?: ['en'];
     }
 
-    /** e.g. App\Enums\UserRespCode => 'user', MainRespCode => 'main' */
-    protected function generateFileName(string $enumClass): string
+    /** Build default message from config-driven patterns and overrides */
+    public static function defaultMessage(string $snakeKey, string $locale): string
     {
-        $short = class_basename($enumClass);
-        if ($short === 'MainRespCode') {
-            return 'main';
-        }
-        $short = \preg_replace('/RespCode$/i', '', $short);
-        return Str::snake($short);
+        $messagesCfg = (array)config('simple-exception.translations.messages', []);
+        $patterns = (array)($messagesCfg['patterns'] ?? []);
+        $fallback = (string)config('simple-exception.translations.locale_fallback', 'en');
+
+        $pattern = $patterns[$locale]
+            ?? $patterns[$fallback]
+            ?? ':readable error occurred.';
+
+        $readable = ucfirst(str_replace('_', ' ', $snakeKey));
+
+        return str_replace(':readable', $readable, $pattern);
     }
 
-    /** NEW canonical path: lang/vendor/simple-exception/{locale}/{file}.php */
-    protected function translationFilePath(string $file, string $locale): string
+    /** Convert CamelCase → snake_case */
+    public static function toSnake(string $s): string
     {
-        $base = Config::get('simple-exception.translations.base_path', 'vendor/simple-exception');
-        return lang_path("{$base}/{$locale}/{$file}.php");
+        $s = preg_replace('/(?<!^)[A-Z]/', '_$0', $s);
+        $s = strtolower($s);
+        return str_replace('__', '_', $s);
     }
 
-    /** OLD legacy path: lang/vendor/simple-exception/{file}/{locale}.php */
-    protected function legacyTranslationFilePath(string $file, string $locale): string
+    /** Return absolute lang file path for a given locale (one file per locale) */
+    public static function localeFilePath(string $locale): string
     {
-        $base = Config::get('simple-exception.translations.base_path', 'vendor/simple-exception');
-        return lang_path("{$base}/{$file}/{$locale}.php");
+        $base = (string)Config::get('simple-exception.translations.base_path', 'simple-exception');
+        $base = trim($base, "/\\");
+        return lang_path($base . DIRECTORY_SEPARATOR . $locale . '.php');
     }
 
-    protected function loadExistingTranslations(string $path): array
+    /** Read an existing locale lang file. Returns [] on any failure. */
+    public function readLocaleFile(string $path): array
     {
         if (!$this->files->exists($path)) {
             return [];
         }
         try {
-            $arr = include $path;
-            return \is_array($arr) ? $arr : [];
-        } catch (\Throwable) {
+            $data = include $path;
+            return is_array($data) ? $data : [];
+        } catch (Throwable) {
             return [];
         }
     }
 
-    protected function extractEnumTranslations(string $enumClass, bool $useMessages): array
+    /**
+     * Merge entries into a group (enum snake name) without overriding existing values.
+     * $pairs: [[CaseName, code], ...] — code is ignored here; only keys are created.
+     */
+    public static function mergePairsIntoGroup(array $existing, string $group, array $pairs, string $locale): array
     {
-        $ref = new ReflectionEnum($enumClass);
-        $out = [];
-        foreach ($ref->getCases() as $case) {
-            $key = Str::snake($case->getName());
-            // default text (agar $useMessages true bo‘lsa – message() dan, hozircha oddiy)
-            $out[$key] = $this->defaultMessage($key);
-        }
-        return $out;
-    }
+        $existing[$group] = isset($existing[$group]) && is_array($existing[$group])
+            ? $existing[$group]
+            : [];
 
-    protected function defaultMessage(string $snakeKey): string
-    {
-        $readable = \ucfirst(\str_replace('_', ' ', $snakeKey));
-        return "{$readable} error occurred.";
-    }
-
-    /** merge: $a ni saqlab, $b dan yo‘q bo‘lganlarni qo‘shadi */
-    protected function mergeTranslations(array $a, array $b): array
-    {
-        foreach ($b as $k => $v) {
-            if (!\array_key_exists($k, $a)) {
-                $a[$k] = $v;
+        foreach ($pairs as [$case, $_]) {
+            $key = self::toSnake($case);
+            if (!array_key_exists($key, $existing[$group])) {
+                $existing[$group][$key] = self::defaultMessage($key, $locale);
             }
         }
-        return $a;
+
+        ksort($existing[$group]);
+        ksort($existing);
+
+        return $existing;
     }
 
-    protected function saveTranslations(string $path, array $translations): void
+    /**
+     * Merge case list (["CaseA","CaseB",...]) into a group without overriding existing values.
+     */
+    public static function mergeCasesIntoGroup(array $existing, string $group, array $cases, string $locale): array
     {
-        $this->files->put($path, $this->exportLang($translations));
+        $existing[$group] = isset($existing[$group]) && is_array($existing[$group])
+            ? $existing[$group]
+            : [];
+
+        foreach ($cases as $caseName) {
+            $key = self::toSnake($caseName);
+            if (!array_key_exists($key, $existing[$group])) {
+                $existing[$group][$key] = self::defaultMessage($key, $locale);
+            }
+        }
+
+        ksort($existing[$group]);
+        ksort($existing);
+
+        return $existing;
     }
 
-    /** Pretty: `<?php\n\nreturn [ ... ];`  (testlar shuni kutadi) */
-    protected function exportLang(array $translations): string
+    /** Export a PHP array as a pretty short-array file */
+    public static function exportLang(array $translations): string
     {
+        // Top-level sort only (stable & minimal). If you need recursive, replace with a recursive ksort.
         ksort($translations);
+
         $body = var_export($translations, true);
         $body = preg_replace('/^array\s*\(/', '[', $body);
         $body = preg_replace('/\)\s*$/', ']', $body);
@@ -151,25 +148,25 @@ readonly class EnumTranslationSync
         return <<<PHP
 <?php
 
-return {$body};
+return $body;
 
 PHP;
     }
 
-    /** Qidirish (o‘zgarmagan) */
+    /** Discover available enums that implement ThrowableEnum in configured directory */
     public function getAvailableEnums(): array
     {
         $out = [];
-        $respCodesDir = Config::get('simple-exception.enum_generation.resp_codes_dir', 'Enums/RespCodes');
-        $enumPath = app_path(\trim($respCodesDir, '/'));
+        $respCodesDir = (string)Config::get('simple-exception.enum_generation.resp_codes_dir', 'Enums/RespCodes');
+        $enumPath = app_path(trim($respCodesDir, '/'));
 
         if ($this->files->exists($enumPath)) {
             foreach ($this->files->glob($enumPath . '/*.php') as $file) {
-                $class = 'App\\' . \str_replace(
+                $class = 'App\\' . str_replace(
                         ['/', '.php'],
                         ['\\', ''],
-                        \trim($respCodesDir, '/')
-                    ) . '\\' . \basename($file, '.php');
+                        trim($respCodesDir, '/')
+                    ) . '\\' . basename($file, '.php');
 
                 if (enum_exists($class) && is_subclass_of($class, ThrowableEnum::class)) {
                     $out[] = $class;
@@ -177,5 +174,27 @@ PHP;
             }
         }
         return $out;
+    }
+
+    /** Extract enum case names (strings) from an enum FQCN
+     * @throws ReflectionException
+     */
+    public static function enumCaseNames(string $enumClass): array
+    {
+        // PHP 8.1+ has ReflectionEnum; on older versions this package shouldn't run.
+        if (class_exists(ReflectionEnum::class)) {
+            $ref = new ReflectionEnum($enumClass);
+            return array_map(fn($c) => $c->getName(), $ref->getCases());
+        }
+
+        // Fallback using ReflectionClass (best-effort for future compatibility)
+        $ref = new ReflectionClass($enumClass);
+        $names = [];
+        if (method_exists($ref, 'getCases')) {
+            foreach ($ref->getCases() as $case) {
+                $names[] = $case->getName();
+            }
+        }
+        return $names;
     }
 }

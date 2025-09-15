@@ -4,84 +4,96 @@ namespace Aslnbxrz\SimpleException\Console\Commands;
 
 use Aslnbxrz\SimpleException\Support\EnumTranslationSync;
 use Illuminate\Console\Command;
+use Illuminate\Filesystem\Filesystem;
 use ReflectionClass;
+use ReflectionException;
+use Throwable;
 
 /**
- * CLI: Sync translation files for one or many ThrowableEnum enums.
+ * Artisan command: sync translation entries for one or more ThrowableEnum enums.
+ *
+ * Behavior:
+ * - Scans enum cases and ensures keys exist in lang/{base_path}/{locale}.php
+ * - Entries are grouped by enum snake name.
+ * - Preserves existing values; only missing keys are added.
  *
  * Examples:
- *  php artisan sync:resp-translations App\\Enums\\RespCodes\\MainRespCode --locale=en,uz --use-messages
+ *  php artisan sync:resp-translations App\\Enums\\RespCodes\\MainRespCode --locale=en,uz
  *  php artisan sync:resp-translations --all --locale=en,ru
  */
 class SyncTranslationsCommand extends Command
 {
     protected $signature = 'sync:resp-translations
-        {enum? : The enum class (e.g., UserRespCode or App\\Enums\\RespCodes\\UserRespCode). If omitted, use --all}
-        {--locale=en : Target locale(s), comma-separated (e.g. "en,uz,ru")}
-        {--file= : Custom file name (default: snake case of enum name)}
-        {--use-messages : Use enum message() method for default text}
-        {--all : Sync all enums found in configured directory}';
+        {enum? : Enum class (e.g., UserRespCode or App\\Enums\\RespCodes\\UserRespCode). If omitted, use --all}
+        {--locale= : Target locales (comma-separated); defaults to config("simple-exception.translations.locales")}
+        {--all : Sync all enums found in configured directory}
+        {--use-messages : (reserved) if your enum exposes custom message() per case}';
 
-    protected $description = 'Sync translations for enum classes that implement ThrowableEnum';
+    protected $description = 'Sync translations for ThrowableEnum enums without overriding existing messages';
 
     public function __construct(
-        private readonly EnumTranslationSync $syncService,
+        private readonly Filesystem          $fs,
+        private readonly EnumTranslationSync $sync
     )
     {
         parent::__construct();
     }
 
+    /**
+     * @throws ReflectionException
+     */
     public function handle(): int
     {
         $enumArg = (string)($this->argument('enum') ?? '');
-        $localesInput = (string)$this->option('locale');
-        $fileName = $this->option('file');
-        $useMessages = (bool)$this->option('use-messages');
+        $localesInput = (string)($this->option('locale') ?? '');
         $syncAll = (bool)$this->option('all');
+        $useMessages = (bool)$this->option('use-messages'); // reserved for future behavior
 
-        $locales = $this->normalizeLocales($localesInput);
+        $locales = EnumTranslationSync::normalizeLocales($localesInput);
         if (empty($locales)) {
-            $this->error('No valid locale specified (use --locale=en or --locale=en,uz,ru).');
+            $this->error('No valid locale specified (use --locale=en or configure simple-exception.translations.locales).');
             return self::FAILURE;
         }
 
         // Build enum list
-        $enums = [];
         if ($syncAll || $enumArg === '') {
-            $enums = $this->syncService->getAvailableEnums();
+            $enums = $this->discoverEnums();
             if (empty($enums)) {
-                $this->warn('No enums found that implement ThrowableEnum in configured directory.');
+                $this->warn('No enums found that implement ThrowableEnum in the configured directory.');
                 return self::SUCCESS;
             }
             $this->info('📋 Found ' . count($enums) . ' enum(s).');
         } else {
             $fqcn = $this->normalizeEnumClass($enumArg);
             if (!$this->isValidEnum($fqcn)) {
-                $this->error("Class {$fqcn} is not a valid enum implementing ThrowableEnum.");
+                $this->error("Class $fqcn is not a valid enum implementing ThrowableEnum.");
                 return self::FAILURE;
             }
             $enums = [$fqcn];
         }
 
-        $success = 0;
         $errors = 0;
-        $files = [];
+        $touched = [];
 
         foreach ($enums as $enumClass) {
-            $this->line("🔄 {$enumClass}");
+            $this->line("🔄 $enumClass");
+
+            $group = EnumTranslationSync::toSnake(preg_replace('/RespCode$/', '', class_basename($enumClass)));
+            $cases = EnumTranslationSync::enumCaseNames($enumClass);
+
             foreach ($locales as $locale) {
                 try {
-                    $result = $this->syncService->sync(
-                        enumClass: $enumClass,
-                        locale: $locale,
-                        fileName: $fileName,
-                        useMessages: $useMessages
-                    );
-                    $files[] = $result['file_path'] ?? '';
-                    $this->line("   ✅ {$result['file_name']}/{$locale}.php created/updated");
-                    $success++;
-                } catch (\Throwable $e) {
-                    $this->line("   ❌ {$locale}: " . $e->getMessage());
+                    $langPath = EnumTranslationSync::localeFilePath($locale);
+                    $this->fs->ensureDirectoryExists(dirname($langPath));
+
+                    $existing = $this->sync->readLocaleFile($langPath);
+                    $updated = EnumTranslationSync::mergeCasesIntoGroup($existing, $group, $cases, $locale);
+
+                    $this->fs->put($langPath, EnumTranslationSync::exportLang($updated));
+                    $this->line("   ✅ $locale.php updated");
+                    $touched[] = $langPath;
+                } catch (Throwable $e) {
+                    $this->line("   ❌ $locale: " . $e->getMessage());
                     $errors++;
                 }
             }
@@ -91,60 +103,48 @@ class SyncTranslationsCommand extends Command
         $this->info('✅ Translation sync finished.');
         $this->line('   Enums: ' . count($enums));
         $this->line('   Locales: ' . implode(', ', $locales));
-        $this->line('   Files touched: ' . count(\array_filter(\array_unique($files))));
+        $this->line('   Files touched: ' . count(array_unique($touched)));
         if ($errors > 0) {
-            $this->warn("   Errors: {$errors}");
+            $this->warn("   Errors: $errors");
         }
 
         return $errors > 0 ? self::FAILURE : self::SUCCESS;
     }
 
-    /** Normalize locales for sync command or fall back to config('simple-exception.locales') */
-    private function normalizeLocales(string $csv): array
+    /** Discover enums that implement ThrowableEnum in configured directory */
+    private function discoverEnums(): array
     {
-        $arr = array_values(array_unique(array_filter(array_map(
-            fn($s) => strtolower(trim($s)), explode(',', $csv)
-        ))));
-
-        if (!empty($arr)) {
-            return $arr;
-        }
-
-        $cfg = (array)config('simple-exception.messages.locales', []);
-        $cfg = array_values(array_unique(array_map(fn($s) => strtolower(trim($s)), $cfg)));
-
-        return $cfg ?: ['en'];
+        return $this->sync->getAvailableEnums();
     }
 
-    /**
-     * Build FQCN:
-     * - If already namespaced, return as-is (plus RespCode suffix if missing).
-     * - If short name, assume configured namespace path under App\, append RespCode if missing.
-     */
+    /** Normalize enum class to FQCN (App\.. + RespCode suffix if missing) */
     private function normalizeEnumClass(string $raw): string
     {
-        $raw = \trim($raw);
+        $raw = trim($raw);
         if ($raw === '') {
             return $raw;
         }
 
-        if (!\preg_match('/RespCode$/i', $raw)) {
+        if (!preg_match('/RespCode$/i', $raw)) {
             $raw .= 'RespCode';
         }
 
-        if (\str_contains($raw, '\\')) {
+        if (str_contains($raw, '\\')) {
             return $raw;
         }
 
-        $relDir = (string)\config('simple-exception.enum_generation.resp_codes_dir', 'Enums/RespCodes');
-        $ns = 'App\\' . \implode('\\', \array_map('ucfirst', \array_filter(\explode('/', \trim($relDir, '/')))));
+        $relDir = (string)config('simple-exception.enum_generation.resp_codes_dir', 'Enums/RespCodes');
+        $ns = 'App\\' . implode('\\', array_map(
+                'ucfirst',
+                array_filter(explode('/', trim($relDir, '/')))
+            ));
         return $ns . '\\' . $raw;
     }
 
-    /** Validate that class exists, is enum, and implements ThrowableEnum */
+    /** Validate enum implements ThrowableEnum */
     private function isValidEnum(string $fqcn): bool
     {
-        if (!\class_exists($fqcn)) {
+        if (!class_exists($fqcn)) {
             return false;
         }
         $ref = new ReflectionClass($fqcn);
