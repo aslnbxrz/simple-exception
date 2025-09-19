@@ -1,5 +1,9 @@
 # SimpleException – Laravel Package
 
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/aslnbxrz/simple-exception.svg)](https://packagist.org/packages/aslnbxrz/simple-exception)
+[![Total Downloads](https://img.shields.io/packagist/dt/aslnbxrz/simple-exception.svg)](https://packagist.org/packages/aslnbxrz/simple-exception)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A modern exception handling package for Laravel with **enum-based error codes**, **automatic translation sync**, and **clean JSON API responses**.
 
 ---
