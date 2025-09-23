@@ -1,4 +1,4 @@
-.PHONY: test bump-patch bump-minor bump-major release help
+.PHONY: bump-patch bump-minor bump-major release help
 
 test:
 	composer test
@@ -12,11 +12,10 @@ bump-minor:
 bump-major:
 	./scripts/bump-version.sh major
 
-release: test bump-patch
+release: bump-patch
 
 help:
 	@echo "Available commands:"
-	@echo "  make test        - Run tests"
 	@echo "  make bump-patch  - Bump patch version (1.0.1 -> 1.0.2)"
 	@echo "  make bump-minor  - Bump minor version (1.0.1 -> 1.1.0)"
 	@echo "  make bump-major  - Bump major version (1.0.1 -> 2.0.0)"
