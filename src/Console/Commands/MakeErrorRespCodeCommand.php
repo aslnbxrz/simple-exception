@@ -3,25 +3,28 @@
 namespace Aslnbxrz\SimpleException\Console\Commands;
 
 use Aslnbxrz\SimpleException\Support\EnumTranslationSync;
+use Aslnbxrz\SimpleTranslation\Services\AppLanguageService;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Str;
 
 /**
- * Generate a new *RespCode enum and create per-enum translation files.
+ * Generate a new *RespCode enum and seed its translations.
  *
- * Files:
- *   app/{resp_codes_dir}/{Class}RespCode.php
- *   lang/{base_path}/{file}/{locale}.php
+ * Behavior by driver:
+ * - simple-translation: do NOT write per-enum PHP lang files. Seed keys via ___()
+ *   into the configured scope (e.g., "exceptions") and export JSON files.
+ * - custom (or others): write per-enum lang PHP files under lang/{base}/{file}/{locale}.php
  */
 class MakeErrorRespCodeCommand extends Command
 {
-    protected $signature = 'make:resp-code 
-        {name? : Base name (e.g. Main => MainRespCode)} 
+    protected $signature = 'make:resp-code
+        {name? : Base name (e.g. Main => MainRespCode)}
         {--cases= : CSV pairs Case=Code, e.g. "NotFound=404,Forbidden=403" (":" also supported)}
         {--locale= : Locale(s), comma-separated; defaults to config("simple-exception.translations.locales")}
         {--force : Overwrite enum file if present (translations are always merged)}';
 
-    protected $description = 'Create a new error response enum and its per-enum translation file(s)';
+    protected $description = 'Create a new error response enum and its translations';
 
     public function __construct(
         private readonly Filesystem          $fs,
@@ -38,8 +41,8 @@ class MakeErrorRespCodeCommand extends Command
             return self::FAILURE;
         }
 
-        $class = $this->formatClassName($name);                        // FooRespCode
-        $pairs = $this->parseCases((string)$this->option('cases'));   // [[CaseName, code], ...]
+        $class = $this->formatClassName($name);                   // FooRespCode
+        $pairs = $this->parseCases((string)$this->option('cases')); // [[CaseName, code], ...]
         $locales = EnumTranslationSync::normalizeLocales((string)($this->option('locale') ?? ''));
         $force = (bool)$this->option('force');
 
@@ -68,17 +71,50 @@ class MakeErrorRespCodeCommand extends Command
             $this->info("Enum created: {$enumPath}");
         }
 
-        // 3) Per-enum translation files: lang/{base_path}/{file}/{locale}.php
-        $file = EnumTranslationSync::generateFileName($class); // e.g. "auth"
-        foreach ($locales as $locale) {
-            $langPath = EnumTranslationSync::translationFilePath($file, $locale);
-            $this->fs->ensureDirectoryExists(dirname($langPath));
+        // 3) Translations by driver
+        $driver = (string)config('simple-exception.translations.driver', 'simple-translation');
 
-            $existing = $this->sync->readLangFile($langPath);
-            $updated = EnumTranslationSync::mergePairs($existing, $pairs, $locale);
+        if ($driver === 'simple-translation') {
+            // No per-enum PHP files. Seed via SimpleTranslation.
+            $scope = (string)config('simple-exception.translations.drivers.simple-translation.scope', 'exceptions');
 
-            $this->fs->put($langPath, EnumTranslationSync::exportLang($updated));
-            $this->line(($existing === [] ? 'Lang created: ' : 'Lang updated: ') . $langPath);
+            // If --locale omitted, fall back to SimpleTranslation locales
+            if (empty($locales)) {
+                $locales = AppLanguageService::getLanguages()->pluck('code')->toArray();
+            }
+            $locales = array_map(fn($it) => is_array($it) ? ($it['code'] ?? 'en') : (string)$it, $locales);
+
+            foreach ($pairs as [$caseName, $code]) {
+                // English default sentence used as the translation key
+                $key = EnumTranslationSync::defaultMessage(Str::snake($caseName), 'en');
+
+                foreach ($locales as $loc) {
+                    if (function_exists('___')) {
+                        // ___() → file-first, DB-backup; creates DB key if missing and writes JSON
+                        ___($key, $scope, $loc);
+                    }
+                }
+            }
+
+            // Ensure JSON files are generated/updated for the scope
+            if (class_exists(AppLanguageService::class)) {
+                AppLanguageService::exportScope($scope, $locales);
+            }
+
+            $this->info("SimpleTranslation driver: keys seeded to scope '{$scope}', no PHP files written.");
+        } else {
+            // File-based (custom) driver: write per-enum PHP lang files
+            $file = EnumTranslationSync::generateFileName($class); // e.g. "auth"
+            foreach ($locales as $locale) {
+                $langPath = EnumTranslationSync::translationFilePath($file, $locale);
+                $this->fs->ensureDirectoryExists(dirname($langPath));
+
+                $existing = $this->sync->readLangFile($langPath);
+                $updated = EnumTranslationSync::mergePairs($existing, $pairs, $locale);
+
+                $this->fs->put($langPath, EnumTranslationSync::exportLang($updated));
+                $this->line(($existing === [] ? 'Lang created: ' : 'Lang updated: ') . $langPath);
+            }
         }
 
         // 4) Hints
@@ -91,7 +127,7 @@ class MakeErrorRespCodeCommand extends Command
         return self::SUCCESS;
     }
 
-    /** Ask interactively for the enum base name */
+    /** Ask interactively for the enum base name. */
     private function askName(): ?string
     {
         $this->line('🎯 Enter enum base name (e.g. "Main" → MainRespCode):');
@@ -111,7 +147,11 @@ class MakeErrorRespCodeCommand extends Command
         return $name;
     }
 
-    /** Interactive case builder (at least one) */
+    /**
+     * Interactive case builder (requires at least one entry).
+     *
+     * @return array<int, array{0:string,1:int}>
+     */
     private function askCasesInteractive(): array
     {
         $this->line('➕ Add cases (at least one). Leave Name empty to finish (after you have ≥1).');
@@ -149,14 +189,18 @@ class MakeErrorRespCodeCommand extends Command
         return $pairs;
     }
 
-    /** "Foo" → "FooRespCode" (idempotent) */
+    /** Make "Foo" → "FooRespCode" (idempotent). */
     private function formatClassName(string $base): string
     {
         $base = preg_replace('/RespCode$/i', '', $base);
         return ucfirst($base) . 'RespCode';
     }
 
-    /** Parse "Case=Code,Other:123" → [[case, code], ...] */
+    /**
+     * Parse "Case=Code,Other:123" → [[case, code], ...].
+     *
+     * @return array<int, array{0:string,1:int}>
+     */
     private function parseCases(string $csv): array
     {
         $out = [];
@@ -172,7 +216,7 @@ class MakeErrorRespCodeCommand extends Command
         return $out;
     }
 
-    /** Numeric code → Symfony Response constant name */
+    /** Map HTTP code → Symfony Response constant suffix. */
     private function httpConst(int $status): string
     {
         return match ($status) {
@@ -190,7 +234,6 @@ class MakeErrorRespCodeCommand extends Command
             422 => 'UNPROCESSABLE_ENTITY',
             426 => 'UPGRADE_REQUIRED',
             429 => 'TOO_MANY_REQUESTS',
-            500 => 'INTERNAL_SERVER_ERROR',
             502 => 'BAD_GATEWAY',
             503 => 'SERVICE_UNAVAILABLE',
             504 => 'GATEWAY_TIMEOUT',
@@ -198,7 +241,7 @@ class MakeErrorRespCodeCommand extends Command
         };
     }
 
-    /** Generate enum source code */
+    /** Generate enum PHP source code. */
     private function buildEnumSource(string $ns, string $class, array $pairs): string
     {
         $casesBlock = implode("", array_map(

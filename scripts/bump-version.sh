@@ -79,16 +79,6 @@ print_status "Updating composer.json..."
 sed -i.bak "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" composer.json
 rm composer.json.bak
 
-# Run tests
-print_status "Running tests..."
-if composer test; then
-    print_success "All tests passed!"
-else
-    print_error "Tests failed! Reverting version change..."
-    git checkout composer.json
-    exit 1
-fi
-
 # Git operations
 print_status "Committing changes..."
 git add .

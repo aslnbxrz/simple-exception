@@ -3,13 +3,20 @@
 namespace Aslnbxrz\SimpleException\Console\Commands;
 
 use Aslnbxrz\SimpleException\Support\EnumTranslationSync;
+use Aslnbxrz\SimpleTranslation\Services\AppLanguageService;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Str;
 use ReflectionClass;
 
 /**
- * Sync per-enum translation files without overriding existing values.
- * Files: lang/{base_path}/{file}/{locale}.php
+ * Sync translations for ThrowableEnum enums.
+ *
+ * Behavior by driver:
+ * - simple-translation: seed keys via ___() for every enum case and locale,
+ *   then export JSON for the configured scope (no PHP files written).
+ * - custom: update per-enum PHP files lang/{base}/{file}/{locale}.php without
+ *   overriding existing values.
  */
 class SyncTranslationsCommand extends Command
 {
@@ -19,7 +26,7 @@ class SyncTranslationsCommand extends Command
         {--all : Sync all enums found in configured directory}
         {--use-messages : (reserved) if your enum exposes custom message() per case}';
 
-    protected $description = 'Sync translations for ThrowableEnum enums (per-enum files)';
+    protected $description = 'Sync translations for ThrowableEnum enums';
 
     public function __construct(
         private readonly Filesystem          $fs,
@@ -34,7 +41,6 @@ class SyncTranslationsCommand extends Command
         $enumArg = (string)($this->argument('enum') ?? '');
         $localesInput = (string)($this->option('locale') ?? '');
         $syncAll = (bool)$this->option('all');
-        $useMessages = (bool)$this->option('use-messages'); // reserved
 
         $locales = EnumTranslationSync::normalizeLocales($localesInput);
         if (empty($locales)) {
@@ -43,7 +49,6 @@ class SyncTranslationsCommand extends Command
         }
 
         // Build enum list
-        $enums = [];
         if ($syncAll || $enumArg === '') {
             $enums = $this->discoverEnums();
             if (empty($enums)) {
@@ -60,15 +65,50 @@ class SyncTranslationsCommand extends Command
             $enums = [$fqcn];
         }
 
+        $driver = (string)config('simple-exception.translations.driver', 'simple-translation');
         $errors = 0;
         $touched = [];
 
         foreach ($enums as $enumClass) {
             $this->line("🔄 {$enumClass}");
 
-            $file = EnumTranslationSync::generateFileName($enumClass);
             $cases = EnumTranslationSync::enumCaseNames($enumClass);
 
+            if ($driver === 'simple-translation') {
+                // Seed via SimpleTranslation (no PHP files)
+                $scope = (string)config('simple-exception.translations.drivers.simple-translation.scope', 'exceptions');
+
+                foreach ($cases as $caseName) {
+                    // English default sentence used as key
+                    $key = EnumTranslationSync::defaultMessage(Str::snake($caseName), 'en');
+                    foreach ($locales as $locale) {
+                        try {
+                            if (function_exists('___')) {
+                                ___($key, $scope, $locale);
+                            }
+                        } catch (\Throwable $e) {
+                            $this->line("   ❌ {$locale}: " . $e->getMessage());
+                            $errors++;
+                        }
+                    }
+                }
+
+                // Export scope JSONs once per command (safe to repeat)
+                try {
+                    if (class_exists(AppLanguageService::class)) {
+                        AppLanguageService::exportScope($scope, $locales);
+                    }
+                    $this->line("   ✅ seeded to SimpleTranslation (scope: {$scope})");
+                } catch (\Throwable $e) {
+                    $this->line("   ❌ export: " . $e->getMessage());
+                    $errors++;
+                }
+
+                continue;
+            }
+
+            // File-based driver: update per-enum PHP files
+            $file = EnumTranslationSync::generateFileName($enumClass);
             foreach ($locales as $locale) {
                 try {
                     $langPath = EnumTranslationSync::translationFilePath($file, $locale);
@@ -91,7 +131,9 @@ class SyncTranslationsCommand extends Command
         $this->info('✅ Translation sync finished.');
         $this->line('   Enums: ' . count($enums));
         $this->line('   Locales: ' . implode(', ', $locales));
-        $this->line('   Files touched: ' . count(array_unique($touched)));
+        if (!empty($touched)) {
+            $this->line('   Files touched: ' . count(array_unique($touched)));
+        }
         if ($errors > 0) {
             $this->warn("   Errors: {$errors}");
         }
@@ -99,13 +141,13 @@ class SyncTranslationsCommand extends Command
         return $errors > 0 ? self::FAILURE : self::SUCCESS;
     }
 
-    /** Discover enums that implement ThrowableEnum in configured directory */
+    /** Discover enums that implement ThrowableEnum in configured directory. */
     private function discoverEnums(): array
     {
         return $this->sync->getAvailableEnums();
     }
 
-    /** Normalize enum class to FQCN (App\.. + RespCode suffix if missing) */
+    /** Normalize enum class to FQCN (App\.. + RespCode suffix if missing). */
     private function normalizeEnumClass(string $raw): string
     {
         $raw = trim($raw);
@@ -129,7 +171,7 @@ class SyncTranslationsCommand extends Command
         return $ns . '\\' . $raw;
     }
 
-    /** Validate enum implements ThrowableEnum */
+    /** Validate that a class is an enum implementing ThrowableEnum. */
     private function isValidEnum(string $fqcn): bool
     {
         if (!class_exists($fqcn)) {

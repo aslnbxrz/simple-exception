@@ -1,27 +1,8 @@
 <?php
 
 return [
-    /*
-    |--------------------------------------------------------------------------
-    | API response configuration
-    |--------------------------------------------------------------------------
-    */
     'response' => [
         'template' => 'default',
-
-        /*
-        |----------------------------------------------------------------------
-        | Response templates
-        |----------------------------------------------------------------------
-        | make your own response template using placeholders:
-        | - :message  (string)  error message
-        | - :code     (int)     error code
-        | - :success  (bool)    success flag
-        | - :data     (?array)  data
-        | - :meta     (array)   metadata (debug meta if enabled)
-        |
-        | if debug meta is disabled :meta will be removed from response even if it is not null
-        */
         'templates' => [
             'default' => [
                 'success' => ':success',
@@ -36,65 +17,32 @@ return [
             // add your own templates here
         ],
     ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Default error code when nothing provided
-    |--------------------------------------------------------------------------
-    */
     'default_error_code' => -1,
-
-    /*
-    |--------------------------------------------------------------------------
-    | Debug meta key (true | false | null)
-    |--------------------------------------------------------------------------
-    |
-    | if null it will use app('config')->get('app.debug')
-    |
-    */
     'force_debug_meta' => null,
-
-    /*
-    |--------------------------------------------------------------------------
-    | Enum generation configuration
-    |--------------------------------------------------------------------------
-    */
     'enum_generation' => [
         'resp_codes_dir' => env('SIMPLE_EXCEPTION_RESP_CODES_DIR', 'Enums/RespCodes'),
     ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Translation configuration
-    |--------------------------------------------------------------------------
-    */
     'translations' => [
-        'base_path' => env('SIMPLE_EXCEPTION_TRANSLATIONS_PATH', 'vendor/simple-exceptions'),
-
-        'locale_fallback' => 'en',
-
-        'locales' => [
-            'en'
-        ],
-
-        /*
-        |--------------------------------------------------------------------------
-        | Message patterns (config-driven defaults)
-        |--------------------------------------------------------------------------
-        | - ":readable" human-readable string like 'user not found'
-        */
-        'messages' => [
-            'patterns' => [
-                'en' => ':readable error occurred.',
+        'driver' => env('SIMPLE_EXCEPTION_TRANSLATION_DRIVER', 'simple-translation'),
+        'drivers' => [
+            'simple-translation' => [
+                'scope' => 'exceptions'
             ],
-        ],
-    ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Performance optimizations
-    |--------------------------------------------------------------------------
-    */
+            'custom' => [
+                'base_path' => env('SIMPLE_EXCEPTION_TRANSLATIONS_PATH', 'vendor/simple-exceptions'),
+                'locale_fallback' => 'en',
+                'locales' => [
+                    'en'
+                ],
+                'messages' => [
+                    'patterns' => [
+                        'en' => ':readable error occurred.',
+                    ],
+                ],
+            ],
+        ]
+    ],
     'performance' => [
         'cache_messages' => env('SIMPLE_EXCEPTION_CACHE_MESSAGES', true),
         'cache_duration' => env('SIMPLE_EXCEPTION_CACHE_DURATION', 3600),
