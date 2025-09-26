@@ -5,9 +5,17 @@ namespace Aslnbxrz\SimpleException\Exceptions;
 use Aslnbxrz\SimpleException\Contracts\ThrowableEnum;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Throwable;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Session\TokenMismatchException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class SimpleExceptionHandler
 {
@@ -127,21 +135,52 @@ final class SimpleExceptionHandler
     /** Get http status code from exception */
     private static function exceptionHttpCode(Throwable $e): int
     {
-        if (method_exists($e, 'getStatusCode')) {
+        // 1) Symfony/Laravel HttpException'lar: to'g'ridan-to'g'ri status code olish
+        if ($e instanceof HttpExceptionInterface) {
             try {
                 $s = (int)$e->getStatusCode();
                 if ($s > 0) {
                     return $s;
                 }
             } catch (Throwable) {
+                // ignore
             }
         }
 
-        if ($e instanceof ValidationException) {
-            return 422;
+        // 2) Laravel-typical exceptions mapping (no getStatusCode())
+        // Authentication / Authorization
+        if ($e instanceof AuthenticationException) {
+            return 401; // Unauthenticated
+        }
+        if ($e instanceof AuthorizationException || $e instanceof AccessDeniedHttpException) {
+            return 403; // Forbidden
         }
 
-        return HttpResponse::HTTP_INTERNAL_SERVER_ERROR;
+        // Routing / Model / Method
+        if ($e instanceof NotFoundHttpException || $e instanceof ModelNotFoundException) {
+            return 404; // Not Found
+        }
+        if ($e instanceof MethodNotAllowedHttpException) {
+            return 405; // Method Not Allowed
+        }
+
+        // CSRF
+        if ($e instanceof TokenMismatchException) {
+            return 419; // Page Expired (Laravel convention)
+        }
+
+        // Rate limiting
+        if ($e instanceof ThrottleRequestsException) {
+            return 429; // Too Many Requests
+        }
+
+        // Validation: keep 422
+        if ($e instanceof \Illuminate\Validation\ValidationException) {
+            return 422; // Unprocessable Entity
+        }
+
+        // 3) Fallback
+        return HttpResponse::HTTP_INTERNAL_SERVER_ERROR; // 500
     }
 
     /**
